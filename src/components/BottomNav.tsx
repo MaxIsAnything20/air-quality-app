@@ -28,19 +28,26 @@ interface BottomNavProps {
 
 export default function BottomNav({ active, onChange, badges }: BottomNavProps) {
   return (
-    <div className="flex justify-around py-2 border-t border-ink-200 dark:border-night-600">
+    // Blue bar matches the header (see App.tsx) so the app's chrome reads
+    // as one consistent branded frame top and bottom, with the neutral
+    // light/dark content sandwiched in between — mirrors AirNow's own
+    // persistent blue tab bar rather than the plain transparent strip
+    // this used to be.
+    <div className="flex justify-around py-2 bg-gradient-to-b from-[#1C5D99] to-[#164A7D] dark:from-[#0A2238] dark:to-[#081C30]">
       {tabs.map((tab) => (
         <button
           key={tab.id}
           onClick={() => onChange(tab.id)}
-          className={`relative flex flex-col items-center gap-0.5 ${active === tab.id ? 'text-ink-900 dark:text-night-100' : 'text-ink-400 dark:text-night-400'}`}
+          className={`relative flex flex-col items-center gap-0.5 px-3 py-1 rounded-xl transition-colors ${
+            active === tab.id ? 'text-white bg-white/15' : 'text-white/55'
+          }`}
         >
           <span className="relative">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
               {icons[tab.id]}
             </svg>
             {badges?.[tab.id] && (
-              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-aqi-unhealthy ring-2 ring-white dark:ring-night-800" />
+              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-aqi-unhealthy ring-2 ring-[#1C5D99] dark:ring-[#0A2238]" />
             )}
           </span>
           <span className="text-[10px]">{tab.label}</span>
