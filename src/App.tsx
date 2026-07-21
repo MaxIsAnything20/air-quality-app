@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import MapView from './components/MapView'
 import SearchBar from './components/SearchBar'
 import AqiGauge from './components/AqiGauge'
+import DivergenceBanner from './components/DivergenceBanner'
 import StatStrip from './components/StatStrip'
-import ReportsList from './components/ReportsList'
 import BottomNav, { TabId } from './components/BottomNav'
 import ThemeToggle from './components/ThemeToggle'
 import HistoryView from './components/HistoryView'
@@ -16,6 +16,7 @@ import { useSummary } from './hooks/useSummary'
 import { useAlertNotifications } from './hooks/useAlertNotifications'
 import { AlertSettings, loadAlertSettings, saveAlertSettings } from './services/alertSettings'
 import { HealthProfile, isSensitiveGroup, loadHealthProfile, saveHealthProfile } from './services/profile'
+import { detectDivergence, summarizeDivergence } from './services/divergence'
 import { RegionSelection } from './types'
 
 export default function App() {
@@ -47,6 +48,23 @@ export default function App() {
   // can never trigger a real browser notification.
   useAlertNotifications(air.usingSampleData ? null : air.stats.currentAqi, alertSettings)
 
+  // Cross-checks official AirNow readings against nearby PurpleAir sensors
+  // — flags sensors reading notably worse than the nearest official
+  // station, a signal official data (updated hourly) hasn't caught up to
+  // yet. Skipped on sample data for the same reason the AI summary call
+  // is: no point flagging "divergence" between two sets of made-up numbers.
+  const divergenceAlerts = useMemo(() => {
+    if (air.usingSampleData || air.purpleAirUsingSampleData) return []
+    return detectDivergence(air.aqiReadings, air.purpleAirReadings)
+  }, [air.usingSampleData, air.purpleAirUsingSampleData, air.aqiReadings, air.purpleAirReadings])
+
+  const divergenceNote = useMemo(() => summarizeDivergence(divergenceAlerts), [divergenceAlerts])
+
+  const divergentSensorIds = useMemo(
+    () => new Set(divergenceAlerts.map((a) => a.sensor.id)),
+    [divergenceAlerts]
+  )
+
   const summary = useSummary(
     air.stats.currentAqi,
     air.alert.level,
@@ -54,7 +72,8 @@ export default function App() {
     healthProfile,
     air.usingSampleData,
     selectedRegion?.reading ?? null,
-    selectedRegion?.step ?? null
+    selectedRegion?.step ?? null,
+    divergenceNote
   )
 
   function handleAlertSettingsChange(next: AlertSettings) {
@@ -70,7 +89,8 @@ export default function App() {
   // Flags the Alerts tab with a dot whenever conditions are worth a look
   // and the user isn't already on that tab — a passive nudge instead of a
   // banner competing with the map for attention.
-  const alertsNeedAttention = air.alert.level !== 'good' && activeTab !== 'alerts'
+  const alertsNeedAttention =
+    (air.alert.level !== 'good' || divergenceAlerts.length > 0) && activeTab !== 'alerts'
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-ink-200 dark:bg-night-900 p-0 sm:p-6 transition-colors">
@@ -87,7 +107,7 @@ export default function App() {
         </div>
 
         {activeTab === 'map' && (
-          <>
+          <div className="flex-1 overflow-y-auto">
             <SearchBar
               onSelectLocation={(result) =>
                 air.searchLocation({ lat: result.lat, lng: result.lng }, result.label)
@@ -136,12 +156,14 @@ export default function App() {
                 search bar, since it's the single fact this app exists to
                 answer. */}
             <AqiGauge value={air.stats.currentAqi} level={air.alert.level} detail={air.alert.detail} />
+            <DivergenceBanner alerts={divergenceAlerts} />
 
             <MapView
               aqiReadings={air.aqiReadings}
               fieldReports={air.fieldReports}
               smokePolygons={air.smokePolygons}
               purpleAirReadings={air.purpleAirReadings}
+              divergentSensorIds={divergentSensorIds}
               center={air.center}
               pastMapDates={air.pastMapDates}
               getMapSnapshotForDate={air.getMapSnapshotForDate}
@@ -158,10 +180,7 @@ export default function App() {
               step={selectedRegion?.step ?? null}
               onClearRegion={() => setSelectedRegion(null)}
             />
-            <div className="flex-1 overflow-y-auto">
-              <ReportsList reports={air.fieldReports} />
-            </div>
-          </>
+          </div>
         )}
 
         {activeTab === 'history' && (
@@ -177,6 +196,7 @@ export default function App() {
             settings={alertSettings}
             onChange={handleAlertSettingsChange}
             sensitiveProfile={isSensitiveGroup(healthProfile)}
+            center={air.center}
           />
         )}
 
