@@ -35,7 +35,7 @@ export function isPushSupported(): boolean {
 // build. Constructing with `new Uint8Array(length)` instead guarantees a
 // concrete `ArrayBuffer`-backed array, which satisfies `BufferSource`
 // cleanly and sidesteps the inference issue entirely.
-function urlBase64ToUint8Array(base64String: string): Uint8Array {
+function urlBase64ToUint8Array(base64String: string): Uint8Array<ArrayBuffer> {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
   const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
   const rawData = atob(base64)
