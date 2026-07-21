@@ -5,9 +5,15 @@ export default function StatStrip({ stats }: { stats: ExposureStats }) {
   // as the screen's primary focal point — repeating it here was a
   // redundant status surface (see UI rebuild notes). Only the two stats
   // the gauge doesn't already show remain.
+  //
+  // Label / big value / small sublabel mirrors the card pattern HistoryView
+  // already uses for its "This month" / "Average AQI" / "Peak day" stats —
+  // matching it here means a value like "0 days" reads the same way
+  // ("unhealthy or worse") no matter which screen it shows up on, instead
+  // of inventing a second, differently-worded pattern for the same number.
   const items = [
-    { label: 'This month', value: `${stats.daysUnhealthyThisMonth} days` },
-    { label: 'Forecast peak', value: stats.forecastPeakAqi }
+    { label: 'This month', value: `${stats.daysUnhealthyThisMonth} days`, sublabel: 'unhealthy or worse' },
+    { label: 'Forecast peak', value: String(stats.forecastPeakAqi), sublabel: 'AQI' }
   ]
 
   return (
@@ -42,6 +48,9 @@ export default function StatStrip({ stats }: { stats: ExposureStats }) {
           <p className="text-xs text-ink-600 dark:text-night-200 m-0 whitespace-nowrap">{item.label}</p>
           <p className="text-xl font-medium tabular-nums text-ink-900 dark:text-night-100 m-0 mt-1 whitespace-nowrap">
             {item.value}
+          </p>
+          <p className="text-[11px] text-ink-400 dark:text-night-400 m-0 mt-0.5 whitespace-nowrap">
+            {item.sublabel}
           </p>
         </div>
       ))}
