@@ -122,7 +122,7 @@ export default function MapView({
   }
 
   return (
-    <div className="relative h-[320px] border-b border-ink-200 dark:border-night-600">
+    <div className="relative h-[45vh] min-h-[360px] max-h-[480px] border-b border-ink-200 dark:border-night-600">
       <MapContainer
         ref={mapRef}
         center={center}
