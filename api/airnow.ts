@@ -22,7 +22,8 @@ export default async function handler(req: any, res: any) {
   }
 
   const incoming = new URL(req.url ?? '', 'http://localhost')
-  const upstreamPath = incoming.searchParams.get('upstreamPath') || '/'
+      const rawPath = incoming.searchParams.get('upstreamPath') || ''
+    const upstreamPath = rawPath.startsWith('/') ? rawPath : `/${rawPath}`
   incoming.searchParams.delete('upstreamPath')
   incoming.searchParams.set('API_KEY', apiKey)
 
