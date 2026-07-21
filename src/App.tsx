@@ -95,12 +95,16 @@ export default function App() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-ink-200 dark:bg-night-900 p-0 sm:p-6 transition-colors">
       <div className="w-full sm:max-w-[390px] sm:h-[780px] sm:rounded-[28px] sm:border sm:border-ink-400 dark:sm:border-night-500 overflow-hidden bg-white dark:bg-night-800 flex flex-col transition-colors">
-        <div className="flex items-center justify-between px-4 py-2.5 border-b border-ink-200 dark:border-night-600">
-          <span className="text-xs text-ink-400 dark:text-night-400">9:41</span>
-          <span className="text-sm font-medium text-ink-900 dark:text-night-100">AirTrack</span>
+        {/* Blue chrome, modeled on AirNow's persistent blue top bar — stays
+            on every tab (not just the map) so the app has one consistent
+            branded frame, with the AqiGauge continuing this exact gradient
+            (see AqiGauge.tsx) into one seamless panel on the map tab. */}
+        <div className="flex items-center justify-between px-4 py-2.5 bg-gradient-to-b from-[#1C5D99] to-[#2E6DA4] dark:from-[#0A2238] dark:to-[#0F2A47]">
+          <span className="text-xs text-white/70">9:41</span>
+          <span className="text-sm font-semibold text-white tracking-wide">AirTrack</span>
           <div className="flex items-center gap-1">
             <ThemeToggle theme={theme} onToggle={toggleTheme} />
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="text-ink-600 dark:text-night-200">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="text-white/85">
               <path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9ZM13.73 21a2 2 0 0 1-3.46 0" />
             </svg>
           </div>
@@ -157,6 +161,13 @@ export default function App() {
                 answer. */}
             <AqiGauge value={air.stats.currentAqi} level={air.alert.level} detail={air.alert.detail} />
             <DivergenceBanner alerts={divergenceAlerts} />
+
+            {/* One-line orientation for what the map underneath actually
+                does — without it, the colored dots/polygons have no
+                explained affordance until someone happens to tap one. */}
+            <p className="px-4 pt-2.5 pb-1.5 text-[11px] text-ink-400 dark:text-night-400 m-0">
+              Tap a colored dot for station details · switch layers above the map
+            </p>
 
             <MapView
               aqiReadings={air.aqiReadings}
