@@ -27,6 +27,12 @@ interface AirQualityState {
   aqiReadings: AqiReading[]
   stats: ExposureStats
   alert: ConditionAlert
+  // "Reporting Area, State" for whichever station is currently driving
+  // `stats`/`alert` — kept as its own plain string (rather than making
+  // callers re-derive it from a reading buried in aqiReadings) so the
+  // gauge can show a location heading the way AirNow always does, without
+  // caring whether that came from geolocation or a search override.
+  locationLabel: string
   // Real history, logged client-side as live readings come in (see
   // services/historyLog.ts) — falls back to a fabricated sample curve only
   // until enough real days have accumulated for this browser/device. Kept
@@ -85,6 +91,11 @@ function sampleState(errorMessage?: string, center: [number, number] = FALLBACK_
     aqiReadings: shiftToCenter(mockAqiReadings, center),
     stats: mockExposureStats,
     alert: mockConditionAlert,
+    // Sample data is always anchored near FALLBACK_CENTER regardless of
+    // where `center` actually is (see shiftToCenter above), so the label
+    // stays tied to that same real place rather than claiming a location
+    // the mock dots weren't actually shifted to name.
+    locationLabel: 'San Francisco, CA',
     monthlyHistory: generateMockMonthlyHistory(),
     historyUsingSampleData: true,
     tomorrowAqiReadings: []
@@ -149,15 +160,17 @@ export function useAirQuality() {
         }
         const forecastWorst = worstReading(forecast)
 
+        const stationLabel = currentWorst.StateCode
+          ? `${currentWorst.ReportingArea}, ${currentWorst.StateCode}`
+          : currentWorst.ReportingArea
+
         const reading: AqiReading = {
           value: currentWorst.AQI,
           level: aqiLevelFromValue(currentWorst.AQI),
           lat: coords.lat,
           lng: coords.lng,
           radiusMeters: 6000,
-          stationName: currentWorst.StateCode
-            ? `${currentWorst.ReportingArea}, ${currentWorst.StateCode}`
-            : currentWorst.ReportingArea,
+          stationName: stationLabel,
           pollutant: currentWorst.ParameterName,
           observedAt: formatObservedAt(currentWorst.DateObserved, currentWorst.HourObserved, currentWorst.LocalTimeZone),
           pollutants: buildPollutantBreakdown(observations, currentWorst)
@@ -190,6 +203,7 @@ export function useAirQuality() {
             aqiReadings: regionalReadings.length > 0 ? regionalReadings : [reading],
             stats,
             alert: buildConditionAlert(currentWorst, forecastWorst),
+            locationLabel: stationLabel,
             tomorrowAqiReadings: regionalForecastResult,
             ...history
           })
