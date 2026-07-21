@@ -155,7 +155,7 @@ function apiKeyProxyPlugin(env: Record<string, string>): Plugin {
                 headers: { 'content-type': 'application/json' },
                 body: JSON.stringify({
                   contents: [{ parts: [{ text: prompt }] }],
-                  generationConfig: { maxOutputTokens: 200 }
+                  generationConfig: { maxOutputTokens: 300, thinkingConfig: { thinkingBudget: 0 } }
                 })
               }
             )
