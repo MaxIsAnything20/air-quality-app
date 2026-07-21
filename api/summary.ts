@@ -13,13 +13,17 @@
 // we hand it the correct advice/time limit for this category and ask it to
 // phrase that into a sentence, not derive it from scratch.
 //
-// NOTE: uses Google's Gemini API free tier (gemini-2.5-flash, via the
-// generateContent REST endpoint) — 1,500 requests/day, no billing account
-// needed, as of when this was written. Check
-// https://ai.google.dev/gemini-api/docs/models for the current free-tier
-// model list before relying on this, since Google periodically changes
-// which models are free (Pro-tier models started requiring billing in
-// April 2026; Flash models did not).
+// NOTE: uses Google's Gemini API free tier via the generateContent REST
+// endpoint — 1,500 requests/day, no billing account needed, as of when
+// this was written. Uses the `gemini-flash-latest` alias (Google's
+// documented stable pointer to whatever the current default Flash model
+// is) rather than pinning a dated model string like `gemini-2.5-flash`,
+// since that pinned name 404'd in testing — likely because it had already
+// been superseded. `gemini-flash-latest` gets hot-swapped by Google with
+// 2 weeks' notice on breaking changes, so it shouldn't need manual upkeep
+// the way a pinned version does. See
+// https://ai.google.dev/gemini-api/docs/models for details if this ever
+// needs revisiting.
 interface SummaryRequestBody {
   aqi: number
   level: string
@@ -131,7 +135,7 @@ export default async function handler(req: any, res: any) {
 
   try {
     const upstream = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
