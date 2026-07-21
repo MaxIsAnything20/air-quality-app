@@ -42,17 +42,22 @@ export default function SummaryCard({ summary, loading, usingFallback, region, s
           e.g. a station can read "Moderate" on ozone while also having an
           elevated PM2.5 value worth knowing about. Only shown for a
           selected station since that's the only place we have the full
-          per-station breakdown rather than just the worst reading. */}
+          per-station breakdown rather than just the worst reading.
+          Styled as rounded pill badges (rather than the small square tags
+          this used to be) to echo AirNow's own Primary/Secondary Pollutant
+          cards — a colored capsule with the pollutant name and its own AQI
+          value is their visual shorthand for "this number, in this
+          category," and reusing it here keeps that association intact. */}
       {region?.pollutants && region.pollutants.length > 1 && (
-        <div className="flex flex-wrap gap-1.5 mb-1.5">
+        <div className="flex flex-wrap gap-1.5 mb-2">
           {region.pollutants.map((p) => (
             <span
               key={p.parameter}
-              className="text-[10px] font-medium px-1.5 py-0.5 rounded-md text-white"
+              className="text-xs font-semibold px-2.5 py-1 rounded-full text-white shadow-sm"
               style={{ backgroundColor: aqiColor[p.level] }}
               title={aqiLevelLabel[p.level]}
             >
-              {p.parameter} {p.aqi}
+              {p.parameter} <span className="tabular-nums">{p.aqi}</span>
             </span>
           ))}
         </div>
