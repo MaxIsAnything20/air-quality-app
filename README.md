@@ -189,7 +189,6 @@ src/
     ConditionBanner.tsx   single top-priority alert
     StatStrip.tsx         current / monthly / forecast stat cards
     SummaryCard.tsx        AI (or fallback) plain-language summary
-    ReportsList.tsx       nearby fire/smoke reports
     HistoryView.tsx       month-to-date AQI chart + stats (real once logged, else sample)
     AlertsView.tsx         threshold + notification-permission UI
     ProfileView.tsx         saved health profile UI
