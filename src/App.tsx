@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import MapView from './components/MapView'
 import SearchBar from './components/SearchBar'
 import ConditionBanner from './components/ConditionBanner'
+import DivergenceBanner from './components/DivergenceBanner'
 import StatStrip from './components/StatStrip'
 import ReportsList from './components/ReportsList'
 import BottomNav, { TabId } from './components/BottomNav'
@@ -16,6 +17,7 @@ import { useSummary } from './hooks/useSummary'
 import { useAlertNotifications } from './hooks/useAlertNotifications'
 import { AlertSettings, loadAlertSettings, saveAlertSettings } from './services/alertSettings'
 import { HealthProfile, isSensitiveGroup, loadHealthProfile, saveHealthProfile } from './services/profile'
+import { detectDivergence, summarizeDivergence } from './services/divergence'
 import { RegionSelection } from './types'
 
 export default function App() {
@@ -47,6 +49,23 @@ export default function App() {
   // can never trigger a real browser notification.
   useAlertNotifications(air.usingSampleData ? null : air.stats.currentAqi, alertSettings)
 
+  // Cross-checks official AirNow readings against nearby PurpleAir sensors
+  // — flags sensors reading notably worse than the nearest official
+  // station, a signal official data (updated hourly) hasn't caught up to
+  // yet. Skipped on sample data for the same reason the AI summary call
+  // is: no point flagging "divergence" between two sets of made-up numbers.
+  const divergenceAlerts = useMemo(() => {
+    if (air.usingSampleData || air.purpleAirUsingSampleData) return []
+    return detectDivergence(air.aqiReadings, air.purpleAirReadings)
+  }, [air.usingSampleData, air.purpleAirUsingSampleData, air.aqiReadings, air.purpleAirReadings])
+
+  const divergenceNote = useMemo(() => summarizeDivergence(divergenceAlerts), [divergenceAlerts])
+
+  const divergentSensorIds = useMemo(
+    () => new Set(divergenceAlerts.map((a) => a.sensor.id)),
+    [divergenceAlerts]
+  )
+
   const summary = useSummary(
     air.stats.currentAqi,
     air.alert.level,
@@ -54,7 +73,8 @@ export default function App() {
     healthProfile,
     air.usingSampleData,
     selectedRegion?.reading ?? null,
-    selectedRegion?.step ?? null
+    selectedRegion?.step ?? null,
+    divergenceNote
   )
 
   function handleAlertSettingsChange(next: AlertSettings) {
@@ -121,6 +141,7 @@ export default function App() {
               fieldReports={air.fieldReports}
               smokePolygons={air.smokePolygons}
               purpleAirReadings={air.purpleAirReadings}
+              divergentSensorIds={divergentSensorIds}
               center={air.center}
               pastMapDates={air.pastMapDates}
               getMapSnapshotForDate={air.getMapSnapshotForDate}
@@ -129,6 +150,7 @@ export default function App() {
               onSelectRegion={setSelectedRegion}
             />
             <ConditionBanner alert={air.alert} />
+            <DivergenceBanner alerts={divergenceAlerts} />
             <StatStrip stats={air.stats} />
             <SummaryCard
               summary={summary.summary}
@@ -157,6 +179,7 @@ export default function App() {
             settings={alertSettings}
             onChange={handleAlertSettingsChange}
             sensitiveProfile={isSensitiveGroup(healthProfile)}
+            center={air.center}
           />
         )}
 

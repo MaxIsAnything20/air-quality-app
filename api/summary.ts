@@ -29,6 +29,10 @@ interface SummaryRequestBody {
    *  slider step a region reading came from — determines whether the
    *  prompt says "is currently," "is forecast to be," or "was." */
   timeContext?: string | null
+  /** One-sentence factual note from src/services/divergence.ts when nearby
+   *  PurpleAir sensors read notably worse than the official station.
+   *  Optional grounding context — most requests won't have one. */
+  divergenceNote?: string | null
 }
 
 // Same "duplicated, not imported" reasoning as AQI_GUIDANCE below — this
@@ -78,7 +82,7 @@ export default async function handler(req: any, res: any) {
 
   const body: Partial<SummaryRequestBody> =
     typeof req.body === 'string' ? JSON.parse(req.body || '{}') : req.body ?? {}
-  const { aqi, level, forecastPeakAqi, sensitiveGroup, stationName, pollutant, pollutantBreakdown, hasForecast, timeContext } = body
+  const { aqi, level, forecastPeakAqi, sensitiveGroup, stationName, pollutant, pollutantBreakdown, hasForecast, timeContext, divergenceNote } = body
 
   if (typeof aqi !== 'number' || typeof forecastPeakAqi !== 'number' || !level) {
     res.status(400).json({ error: 'Expected { aqi, level, forecastPeakAqi, sensitiveGroup } in the request body.' })
@@ -90,11 +94,6 @@ export default async function handler(req: any, res: any) {
   const guidance = AQI_GUIDANCE[level as AqiLevel]
   const advice = sensitiveGroup && guidance?.sensitiveAdvice ? guidance.sensitiveAdvice : guidance?.generalAdvice
   const maxMinutes = sensitiveGroup ? guidance?.sensitiveMaxMinutes : guidance?.generalMaxMinutes
-  // maxMinutes is an illustrative estimate WE made up, not an EPA figure —
-  // EPA's actual Cautionary Statements/Activity Guides are qualitative
-  // ("reduce prolonged exertion"), not tied to a clock time. Keep that
-  // distinction visible to the model so it doesn't present the estimate
-  // as more authoritative than it is.
   const timeGuidance =
     maxMinutes === null || maxMinutes === undefined || maxMinutes === 0
       ? null
@@ -111,9 +110,12 @@ export default async function handler(req: any, res: any) {
     hasForecast === false
       ? "No forecast is available for this specific station — don't state or imply one."
       : isPastOrFuture
-        ? '' // Forecast peak AQI would be misleading noise next to an already-past or already-forecast reading — omit it.
+        ? ''
         : `Forecast peak AQI is ${forecastPeakAqi}.`,
     sensitiveGroup ? 'The person has indicated they are in an AQI-sensitive group.' : '',
+    divergenceNote
+      ? `Additional context: ${divergenceNote} Mention this briefly if it seems relevant, but don't let it dominate the summary.`
+      : '',
     `EPA/AirNow's actual published cautionary guidance for this category: ${advice}.`,
     timeGuidance ? `Separately, ${timeGuidance} — present this as a rough rule of thumb, explicitly NOT as an EPA number, if you mention it at all.` : '',
     isPastOrFuture

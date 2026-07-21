@@ -1,10 +1,14 @@
 import { FieldReport } from '../types'
 import { parseFireKml } from './fireKml'
 
-// Same reasoning as smoke.ts: in dev, requests go through the Vite proxy at
-// /api/fire (see vite.config.ts) so the browser doesn't hit ospo.noaa.gov's
-// CORS policy directly. No API key needed for this feed either.
-const BASE_URL = import.meta.env.DEV ? '/api/fire' : 'https://www.ospo.noaa.gov'
+// Always our own same-origin /api/fire path — handled by the Vite dev
+// proxy in dev (vite.config.ts) and by api/fire/[...path].ts in
+// production. No API key needed for this feed either.
+//
+// FIX: see src/services/smoke.ts's header comment — this had the same
+// dev-only BASE_URL bug, which made production calls go straight to NOAA
+// and silently fall back to sample fire data on every real deploy.
+const BASE_URL = '/api/fire'
 
 export async function fetchFireReports(near: {
   lat: number

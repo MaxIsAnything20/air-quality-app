@@ -8,8 +8,6 @@ import { formatStepLabel, kindOfStep, tenseFor } from '../utils/timeSteps'
 interface SummaryState {
   summary: string
   loading: boolean
-  /** True when the AI backend wasn't reachable/configured and we fell back
-   *  to a locally-built sentence — never leaves the UI with nothing to show. */
   usingFallback: boolean
 }
 
@@ -28,7 +26,8 @@ function fallbackSummary(
   forecastAqi: number,
   profile: HealthProfile | null,
   region: AqiReading | null,
-  step: string | null
+  step: string | null,
+  divergenceNote: string | null
 ): string {
   const sensitive = !!profile && profile.conditions.length > 0
   const where = region ? ` at ${region.stationName}` : ''
@@ -38,8 +37,6 @@ function fallbackSummary(
   if (region) {
     const stepKind = step ? kindOfStep(step) : 'today'
     const verb = step ? tenseFor(step) : 'is currently'
-    // Only worth a parenthetical when it's not "today" — otherwise it's
-    // just noise repeating what "is currently" already says.
     const whenNote = stepKind !== 'today' ? ` (${formatStepLabel(step ?? 'today')})` : ''
     sentence = breakdown
       ? `Air quality${where}${whenNote} ${verb} ${levelLabel(level)} (AQI ${aqi}), driven by ${region.pollutant}. Full breakdown: ${breakdown}.`
@@ -56,38 +53,39 @@ function fallbackSummary(
     ? `${advice} Rule of thumb (not an official EPA figure): ${timeEstimate} of prolonged outdoor exertion.`
     : advice
 
-  return `${sentence} ${recommendation}`
+  // Only appended locally when there's no AI backend — the AI path hands
+  // this same note to the model as prompt context instead (see
+  // services/summary.ts / api/summary.ts) so it can be woven in more
+  // naturally rather than tacked on as a separate sentence.
+  const divergenceSentence = divergenceNote ? ` Heads up: ${divergenceNote}` : ''
+
+  return `${sentence} ${recommendation}${divergenceSentence}`
 }
 
 /** Fetches a short AI-generated plain-language summary, falling back to a
  *  locally-built sentence (no API call) if the backend isn't configured or
- *  the request fails for any reason. Independent loading/error state from
- *  the rest of the app, same pattern as the smoke/fire/PurpleAir hooks.
+ *  the request fails for any reason.
  *
- *  When `region` is set (the person tapped a specific AQI monitor on the
- *  map), the summary describes that station's own reading instead of the
- *  overall location stats, and skips the forecast — AirNow doesn't publish
- *  a per-station forecast, only a regional one. `step` says which time
- *  slider position that region came from ('today' | 'tomorrow' | an ISO
- *  past date) — without it, a summary for a past day or tomorrow's
- *  forecast has no way to avoid describing itself as "current." */
+ *  `divergenceNote` (from services/divergence.ts) is optional grounding
+ *  context — when nearby PurpleAir sensors read notably worse than the
+ *  official station, this is a one-sentence factual note the AI is asked
+ *  to weave in if relevant, same "only use the numbers given" discipline
+ *  as everything else in the prompt. */
 export function useSummary(
   aqi: number,
   level: AqiLevel,
   forecastAqi: number,
   healthProfile: HealthProfile | null,
-  // Set while the app is showing sample/fallback readings (e.g. AirNow
-  // unreachable or no key configured) — skips the AI call entirely rather
-  // than spending a request generating a sentence about made-up numbers.
   skipAiFetch = false,
   region: AqiReading | null = null,
-  step: string | null = null
+  step: string | null = null,
+  divergenceNote: string | null = null
 ): SummaryState {
   const effectiveAqi = region ? region.value : aqi
   const effectiveLevel = region ? region.level : level
 
   const [state, setState] = useState<SummaryState>({
-    summary: fallbackSummary(effectiveAqi, effectiveLevel, forecastAqi, healthProfile, region, step),
+    summary: fallbackSummary(effectiveAqi, effectiveLevel, forecastAqi, healthProfile, region, step, divergenceNote),
     loading: !skipAiFetch,
     usingFallback: true
   })
@@ -95,7 +93,7 @@ export function useSummary(
   useEffect(() => {
     if (skipAiFetch) {
       setState({
-        summary: fallbackSummary(effectiveAqi, effectiveLevel, forecastAqi, healthProfile, region, step),
+        summary: fallbackSummary(effectiveAqi, effectiveLevel, forecastAqi, healthProfile, region, step, divergenceNote),
         loading: false,
         usingFallback: true
       })
@@ -114,7 +112,8 @@ export function useSummary(
       pollutant: region?.pollutant,
       pollutantBreakdown: formatBreakdown(region),
       hasForecast: !region,
-      timeContext: region ? step : null
+      timeContext: region ? step : null,
+      divergenceNote: divergenceNote ?? undefined
     })
       .then((summary) => {
         if (!cancelled) setState({ summary, loading: false, usingFallback: false })
@@ -123,7 +122,7 @@ export function useSummary(
         console.warn('AI summary request failed, using local fallback:', err)
         if (!cancelled) {
           setState({
-            summary: fallbackSummary(effectiveAqi, effectiveLevel, forecastAqi, healthProfile, region, step),
+            summary: fallbackSummary(effectiveAqi, effectiveLevel, forecastAqi, healthProfile, region, step, divergenceNote),
             loading: false,
             usingFallback: true
           })
@@ -134,7 +133,7 @@ export function useSummary(
       cancelled = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [effectiveAqi, effectiveLevel, forecastAqi, healthProfile?.conditions.join(','), skipAiFetch, region?.stationName, step])
+  }, [effectiveAqi, effectiveLevel, forecastAqi, healthProfile?.conditions.join(','), skipAiFetch, region?.stationName, step, divergenceNote])
 
   return state
 }

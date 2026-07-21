@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { Circle, CircleMarker, MapContainer, Polygon, TileLayer, Tooltip, useMap } from 'react-leaflet'
 import type { Map as LeafletMap } from 'leaflet'
 import { AqiReading, FieldReport, PurpleAirReading, RegionSelection, SmokeDensity, SmokePolygon } from '../types'
@@ -14,6 +14,11 @@ interface Props {
   fieldReports: FieldReport[]
   smokePolygons: SmokePolygon[]
   purpleAirReadings: PurpleAirReading[]
+  // Sensor ids flagged by services/divergence.ts as reading notably worse
+  // than the nearest official station — rendered with an extra halo ring
+  // so a fast-developing local event stands out on the map itself, not
+  // just in the DivergenceBanner text above it.
+  divergentSensorIds?: Set<number>
   center: [number, number]
   // Time slider support — real logged past days + AirNow's real regional
   // forecast for "Tomorrow". See services/mapSnapshotLog.ts and
@@ -65,6 +70,7 @@ export default function MapView({
   fieldReports,
   smokePolygons,
   purpleAirReadings,
+  divergentSensorIds,
   center,
   pastMapDates,
   getMapSnapshotForDate,
@@ -187,25 +193,37 @@ export default function MapView({
 
         {activeLayer === 'purpleair' &&
           isToday &&
-          purpleAirReadings.map((sensor) => (
-            <CircleMarker
-              key={sensor.id}
-              center={[sensor.lat, sensor.lng]}
-              radius={5}
-              pathOptions={{
-                color: aqiColor[sensor.level],
-                fillColor: aqiColor[sensor.level],
-                fillOpacity: 0.85,
-                weight: 1
-              }}
-            >
-              <Tooltip>
-                <span className="text-xs">
-                  {sensor.name} — PM2.5 {sensor.pm25} µg/m³ (AQI {sensor.aqi})
-                </span>
-              </Tooltip>
-            </CircleMarker>
-          ))}
+          purpleAirReadings.map((sensor) => {
+            const divergent = divergentSensorIds?.has(sensor.id) ?? false
+            return (
+              <Fragment key={sensor.id}>
+                {divergent && (
+                  <CircleMarker
+                    center={[sensor.lat, sensor.lng]}
+                    radius={11}
+                    pathOptions={{ color: '#D2762E', fillColor: '#D2762E', fillOpacity: 0.15, weight: 2 }}
+                  />
+                )}
+                <CircleMarker
+                  center={[sensor.lat, sensor.lng]}
+                  radius={5}
+                  pathOptions={{
+                    color: divergent ? '#D2762E' : aqiColor[sensor.level],
+                    fillColor: aqiColor[sensor.level],
+                    fillOpacity: 0.85,
+                    weight: divergent ? 2 : 1
+                  }}
+                >
+                  <Tooltip>
+                    <span className="text-xs">
+                      {sensor.name} — PM2.5 {sensor.pm25} µg/m³ (AQI {sensor.aqi})
+                      {divergent ? ' — notably worse than nearest official station' : ''}
+                    </span>
+                  </Tooltip>
+                </CircleMarker>
+              </Fragment>
+            )
+          })}
       </MapContainer>
 
       {unavailableMessage && (

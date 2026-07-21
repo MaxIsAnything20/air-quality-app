@@ -85,7 +85,7 @@ function apiKeyProxyPlugin(env: Record<string, string>): Plugin {
         req.on('data', (chunk) => (raw += chunk))
         req.on('end', async () => {
           try {
-            const { aqi, level, forecastPeakAqi, sensitiveGroup, stationName, pollutant, pollutantBreakdown, hasForecast, timeContext } = JSON.parse(raw || '{}')
+            const { aqi, level, forecastPeakAqi, sensitiveGroup, stationName, pollutant, pollutantBreakdown, hasForecast, timeContext, divergenceNote } = JSON.parse(raw || '{}')
             if (typeof aqi !== 'number' || typeof forecastPeakAqi !== 'number' || !level) {
               res.statusCode = 400
               res.end(JSON.stringify({ error: 'Expected { aqi, level, forecastPeakAqi, sensitiveGroup }.' }))
@@ -137,6 +137,9 @@ function apiKeyProxyPlugin(env: Record<string, string>): Plugin {
                   ? '' // Would be misleading noise next to an already-past or already-forecast reading — omit it.
                   : `Forecast peak AQI is ${forecastPeakAqi}.`,
               sensitiveGroup ? 'The person has indicated they are in an AQI-sensitive group.' : '',
+              divergenceNote
+                ? `Additional context: ${divergenceNote} Mention this briefly if it seems relevant, but don't let it dominate the summary.`
+                : '',
               `EPA/AirNow's actual published cautionary guidance for this category: ${advice}.`,
               timeGuidance ? `Separately, ${timeGuidance} — present this as a rough rule of thumb, explicitly NOT as an EPA number, if you mention it at all.` : '',
               isPastOrFuture

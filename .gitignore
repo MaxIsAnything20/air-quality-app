@@ -1,0 +1,25 @@
+# Dependencies
+node_modules
+
+# Build output
+dist
+dist-ssr
+*.local
+
+# Env files — real API keys must never be committed.
+# Only .env.example (with blank values) should ever be tracked.
+.env
+.env.local
+.env.*.local
+
+# Vercel CLI local project link/cache
+.vercel
+
+# Editor / OS
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+
+# TypeScript incremental build info
+*.tsbuildinfo

@@ -1,0 +1,17 @@
+name: Push alert check
+
+on:
+  schedule:
+    # GitHub's scheduler is best-effort, not exact to the minute — expect
+    # some jitter, especially around the top of the hour under load.
+    - cron: '*/15 * * * *'
+  workflow_dispatch: {} # lets you trigger a manual run from the Actions tab to test
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Hit /api/push/check
+        run: |
+          curl -sf -X GET "${{ vars.AIRTRACK_URL }}/api/push/check" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
