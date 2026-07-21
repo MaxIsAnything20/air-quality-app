@@ -3,9 +3,9 @@
   "outputDirectory": "dist",
   "framework": "vite",
   "rewrites": [
-    { "source": "^/api/airnow/(.*)$", "destination": "/api/airnow?upstreamPath=/$1" },
-    { "source": "^/api/purpleair/(.*)$", "destination": "/api/purpleair?upstreamPath=/$1" },
-    { "source": "^/api/smoke/(.*)$", "destination": "/api/smoke?upstreamPath=/$1" },
-    { "source": "^/api/fire/(.*)$", "destination": "/api/fire?upstreamPath=/$1" }
+    { "source": "/api/airnow/:upstreamPath*", "destination": "/api/airnow" },
+    { "source": "/api/purpleair/:upstreamPath*", "destination": "/api/purpleair" },
+    { "source": "/api/smoke/:upstreamPath*", "destination": "/api/smoke" },
+    { "source": "/api/fire/:upstreamPath*", "destination": "/api/fire" }
   ]
 }
