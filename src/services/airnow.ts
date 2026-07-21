@@ -42,8 +42,8 @@ const BASE_URL = '/api/airnow'
 // (wrong key, rate limit, network blip, or a 404 once these retire) — so
 // the worst case between now and a manual fix is the app quietly switching
 // to its "using sample data" banner, not a crash.
-const CURRENT_OBSERVATIONS_PATH = '/aq/observation/latLong/current/'
-const FORECAST_PATH = '/aq/forecast/latLong/'
+const CURRENT_OBSERVATIONS_PATH = '/aq/observation/latLong/current'
+const FORECAST_PATH = '/aq/forecast/latLong'
 
 async function airnowFetch<T>(path: string, params: URLSearchParams): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}?${params}`)
