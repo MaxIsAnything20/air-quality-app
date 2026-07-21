@@ -128,7 +128,7 @@ export default function App() {
         )}
 
         {activeTab === 'map' && (
-          <>
+          <div className="flex-1 overflow-y-auto">
             <SearchBar
               onSelectLocation={(result) =>
                 air.searchLocation({ lat: result.lat, lng: result.lng }, result.label)
@@ -160,10 +160,8 @@ export default function App() {
               step={selectedRegion?.step ?? null}
               onClearRegion={() => setSelectedRegion(null)}
             />
-            <div className="flex-1 overflow-y-auto">
-              <ReportsList reports={air.fieldReports} />
-            </div>
-          </>
+            <ReportsList reports={air.fieldReports} />
+                    </div>
         )}
 
         {activeTab === 'history' && (
