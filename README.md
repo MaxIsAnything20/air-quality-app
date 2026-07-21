@@ -23,6 +23,21 @@ npm run dev
 Open the printed localhost URL. Resize your browser to phone width (or
 open dev tools device mode) to see it as the mobile shell.
 
+## Tests
+
+```bash
+npm test
+```
+
+Runs the Vitest suite (`vitest run`) over the app's pure-logic modules —
+the divergence detector, the EPA guidance/recommendation table, alert
+threshold and health profile persistence (including corrupt-`localStorage`
+fallback paths), and the time-slider tense/label helpers. `npm run
+test:watch` re-runs on change. Coverage is intentionally scoped to logic
+that's easy to get subtly wrong and hard to eyeball-check (distance math,
+threshold comparisons, tense/EPA-figure wording) rather than UI
+components — there's no component or end-to-end test coverage yet.
+
 ## Getting an AirNow API key
 
 1. Go to https://docs.airnowapi.org, click "Request an AirNow API Account"
@@ -114,6 +129,17 @@ ship in browser-visible JS, none of them use it.
   value runs high in smoke. Filtered to a ~25km box around the current
   location — tighter than the fire feed's 300km, since the point of this
   layer is hyperlocal density, not wide coverage.
+- **Multi-source divergence detection** — real
+  (`src/services/divergence.ts` + `src/components/DivergenceBanner.tsx`).
+  Cross-checks nearby PurpleAir sensors against the nearest official
+  AirNow station and flags sensors reading notably worse (either two full
+  AQI categories worse, or a 50+ point AQI gap) — a signal that a
+  fast-developing local event (a new fire, a drifting smoke plume) hasn't
+  reached the hourly-updated official network yet. Deliberately
+  one-directional: official readings coming in worse than PurpleAir isn't
+  flagged, since that's usually just sensor noise or siting differences,
+  not a real divergence. Skipped on sample data for the same reason the
+  AI summary is.
 - **Monthly exposure history** — real, logged client-side
   (`src/services/historyLog.ts`) each time a live AirNow reading comes in.
   AirNow's historical endpoint only returns one day/reporting-area per
@@ -167,12 +193,17 @@ ship in browser-visible JS, none of them use it.
   The map says so explicitly (not silently blank) when you're on a layer
   or day that has no data for the current step. Slider only appears once
   there's actually more than one step to show.
-- **Alerts tab** — real, threshold-based browser notifications
-  (`src/components/AlertsView.tsx` + `src/hooks/useAlertNotifications.ts`).
-  Pick an AQI threshold, grant notification permission, and you'll get one
-  notification per calendar day if the live AQI reaches it. There's no
-  push server, so this only fires while the app is open in a tab (or
-  backgrounded, depending on the platform) — not a true background push.
+- **Alerts tab** — real, threshold-based notifications, in two modes.
+  Foreground alerts (`src/components/AlertsView.tsx` +
+  `src/hooks/useAlertNotifications.ts`) fire one browser Notification per
+  calendar day if the live AQI reaches your threshold while the app is
+  open in a tab. Background alerts are also real, not aspirational: a
+  service worker (`public/sw.js`) + Web Push subscription
+  (`src/services/pushSubscription.ts`) + Upstash Redis for subscription
+  storage + a GitHub Actions cron job (`.github/workflows/push-check.yml`,
+  every 15 minutes) hitting `/api/push/check` mean you can get a
+  notification even with the app fully closed. See `PUSH_SETUP.md` for
+  the setup/deploy details and required env vars.
 - **Profile tab** — real, a saved health profile
   (`src/components/ProfileView.tsx` + `src/services/profile.ts`):
   asthma, heart/lung disease, age, pregnancy, outdoor work. Stored in
@@ -193,10 +224,11 @@ src/
     MapLegend.tsx         collapsible legend, per-layer swatches + explanation (no cross-tab bleed)
     SearchBar.tsx         live place/ZIP search (Nominatim), debounced
     ConditionBanner.tsx   single top-priority alert
+    DivergenceBanner.tsx  official-vs-citizen-sensor disagreement banner
     StatStrip.tsx         current / monthly / forecast stat cards
     SummaryCard.tsx        AI (or fallback) plain-language summary
     HistoryView.tsx       month-to-date AQI chart + stats (real once logged, else sample)
-    AlertsView.tsx         threshold + notification-permission UI
+    AlertsView.tsx         threshold + notification-permission UI, background alert toggle
     ProfileView.tsx         saved health profile UI
     BottomNav.tsx          map / history / alerts / profile tabs
     ThemeToggle.tsx        light/dark switch
@@ -209,6 +241,7 @@ src/
     airnow.ts               AirNow API client (via /api/airnow)
     airnowTypes.ts           AirNow response types
     conditionAlert.ts        turns AQI + forecast into a plain-language alert
+    divergence.ts             AirNow-vs-PurpleAir disagreement detector
     geolocation.ts           browser geolocation with fallback
     geocode.ts               Nominatim place/ZIP search
     purpleair.ts             PurpleAir sensor fetch (via /api/purpleair), EPA smoke correction
@@ -219,12 +252,16 @@ src/
     summary.ts                AI summary client (via /api/summary)
     alertSettings.ts          threshold + enabled state, persisted
     profile.ts                health profile + HEALTH_CONDITIONS, persisted
+    pushSubscription.ts        client-side Web Push subscribe/unsubscribe helpers
     apiError.ts                shared "server key not configured" error type
   data/mockData.ts         sample data used as a fallback everywhere above
   types.ts                 shared app types + AQI level helper + PM2.5-to-AQI conversion
 api/
   airnow.ts / purpleair.ts / summary.ts   serverless functions, keys attached server-side
   smoke.ts / fire.ts                       keyless NOAA proxies (CORS-avoidance only)
+  push/subscribe.ts / unsubscribe.ts / check.ts   background push subscription + delivery
+public/
+  sw.js                     service worker — receives and shows background push notifications
 ```
 
 ## Known limitations worth knowing about
@@ -269,14 +306,23 @@ api/
   location (`shiftToCenter()` in `useAirQuality.ts`) rather than always
   sitting near San Francisco where the mock data is anchored. Worth
   remembering if you add more mock readings later — same pattern applies.
-- **Alerts don't survive the tab closing.** True background push would
-  need a push subscription + a small server to send it — out of scope for
-  this scaffold. The Alerts tab now links out to AirNow's own EnviroFlash
-  email/text alerts (`https://www.enviroflash.info/`, verified as the
-  correct live signup) for anyone who wants notifications independent of
-  the browser tab being open — a real substitute, not a built feature.
-- **The Gemini model name in `api/summary.ts` / `vite.config.ts`
-  (`gemini-2.5-flash`) is a real, current free-tier model as of this
-  writing** — but re-verify at <https://ai.google.dev/gemini-api/docs/models>
-  if you're reading this a while after this README was last touched, since
-  Google periodically changes which models are on the free tier.
+- **Background push notifications require their own setup and env vars.**
+  The service worker + Web Push + Redis + cron pipeline described above is
+  real and deployed, but only fires if `VAPID_PUBLIC_KEY`,
+  `VAPID_PRIVATE_KEY`, `VITE_VAPID_PUBLIC_KEY`, `VAPID_SUBJECT`,
+  `CRON_SECRET`, and the Upstash `KV_REST_API_URL`/`KV_REST_API_TOKEN`
+  vars are all configured (see `PUSH_SETUP.md`) — without them the
+  Alerts tab silently falls back to foreground-only notifications. The
+  Alerts tab also still links out to AirNow's own EnviroFlash email/text
+  alerts (`https://www.enviroflash.info/`) as a zero-setup alternative.
+- **There's no automated test coverage for React components or
+  end-to-end flows yet** — `npm test` (Vitest) covers the pure-logic
+  modules (divergence detection, AQI guidance, alert/profile persistence,
+  time-step formatting), not the UI layer.
+- **The Gemini model in `api/summary.ts` / `vite.config.ts` uses the
+  `gemini-flash-latest` alias**, not a version pinned to a specific
+  release, specifically so it keeps working as Google rotates which exact
+  model build is current — but re-verify at
+  <https://ai.google.dev/gemini-api/docs/models> if you're reading this a
+  while after this README was last touched, since Google periodically
+  changes which models (and aliases) are on the free tier.
