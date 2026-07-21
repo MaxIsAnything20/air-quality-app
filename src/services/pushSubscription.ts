@@ -24,11 +24,26 @@ export function isPushSupported(): boolean {
 
 // PushManager wants the VAPID key as a raw Uint8Array, not the base64url
 // string it's normally shared/stored as — this is the standard conversion.
+//
+// FIX: the original version used `Uint8Array.from([...rawData].map(...))`,
+// which under TS 5.7+'s updated DOM lib typings infers a
+// `Uint8Array<ArrayBufferLike>` that no longer structurally satisfies
+// `BufferSource` for `PushSubscriptionOptionsInit.applicationServerKey`
+// (a `SharedArrayBuffer`-related generic mismatch) — this failed the
+// Vercel build (`tsc -b`) even though it worked in local dev, since dev
+// mode doesn't always run the same strict type-check pass as a full
+// build. Constructing with `new Uint8Array(length)` instead guarantees a
+// concrete `ArrayBuffer`-backed array, which satisfies `BufferSource`
+// cleanly and sidesteps the inference issue entirely.
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
   const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
   const rawData = atob(base64)
-  return Uint8Array.from([...rawData].map((c) => c.charCodeAt(0)))
+  const outputArray = new Uint8Array(rawData.length)
+  for (let i = 0; i < rawData.length; i++) {
+    outputArray[i] = rawData.charCodeAt(i)
+  }
+  return outputArray
 }
 
 export interface PushSubscribeInput {
