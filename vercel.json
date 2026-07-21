@@ -1,5 +1,11 @@
 {
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
-  "framework": "vite"
+  "framework": "vite",
+  "rewrites": [
+    { "source": "/api/airnow/:path*", "destination": "/api/airnow?upstreamPath=/:path*" },
+    { "source": "/api/purpleair/:path*", "destination": "/api/purpleair?upstreamPath=/:path*" },
+    { "source": "/api/smoke/:path*", "destination": "/api/smoke?upstreamPath=/:path*" },
+    { "source": "/api/fire/:path*", "destination": "/api/fire?upstreamPath=/:path*" }
+  ]
 }
