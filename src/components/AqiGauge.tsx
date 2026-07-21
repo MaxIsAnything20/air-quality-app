@@ -42,7 +42,8 @@ function arcPath(from: number, to: number) {
 export default function AqiGauge({
   value,
   level,
-  detail
+  detail,
+  location
 }: {
   value: number
   level: AqiLevel
@@ -52,6 +53,12 @@ export default function AqiGauge({
   // current reading. Shown as the gauge's caption so that context isn't
   // lost now that the gauge has absorbed ConditionBanner's role.
   detail?: string | null
+  // "Reporting Area, State" — shown as its own bold line on the blue field,
+  // the way AirNow always names the place a reading is for right under its
+  // dial. Optional only so the component doesn't hard-fail if a caller
+  // hasn't got one yet; App.tsx always has one (real station or the sample
+  // fallback's "San Francisco, CA").
+  location?: string | null
 }) {
   const needle = polar(value)
   const color = aqiColor[level]
@@ -110,6 +117,13 @@ export default function AqiGauge({
           </p>
         )}
       </div>
+
+      {/* Bold, on-the-blue location name — AirNow's own home screen names
+          the place ("Raleigh, NC") in large white text right under the
+          dial, separate from the smaller category/detail text above.
+          Placed outside the light card so it reads as chrome/context
+          rather than another data point on the readout. */}
+      {location && <p className="text-white font-semibold text-base tracking-wide m-0 mt-3">{location}</p>}
     </div>
   )
 }
