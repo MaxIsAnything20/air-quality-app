@@ -142,10 +142,11 @@ export default async function handler(req: any, res: any) {
       })
     })
 
-    if (!upstream.ok) {
-      res.status(502).json({ error: `Anthropic API request failed: ${upstream.status}` })
-      return
-    }
+      if (!upstream.ok) {
+        const errBody = await upstream.text().catch(() => '')
+        res.status(502).json({ error: `Anthropic API request failed: ${upstream.status}`, detail: errBody })
+        return
+      }
 
     const data = await upstream.json()
     const text = (data.content ?? [])
