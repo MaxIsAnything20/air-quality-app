@@ -69,13 +69,13 @@ function apiKeyProxyPlugin(env: Record<string, string>): Plugin {
       // keep the two in sync if you change the prompt, guidance table, or
       // model — see src/services/aqiGuidance.ts for the canonical table.
       server.middlewares.use('/api/summary', async (req, res) => {
-        const key = env.ANTHROPIC_API_KEY
+        const key = env.GEMINI_API_KEY
         if (!key) {
           res.statusCode = 501
           res.setHeader('content-type', 'application/json')
           res.end(
             JSON.stringify({
-              error: 'ANTHROPIC_API_KEY is not set — the app falls back to the local rule-based summary.'
+              error: 'GEMINI_API_KEY is not set — the app falls back to the local rule-based summary.'
             })
           )
           return
@@ -85,7 +85,7 @@ function apiKeyProxyPlugin(env: Record<string, string>): Plugin {
         req.on('data', (chunk) => (raw += chunk))
         req.on('end', async () => {
           try {
-            const { aqi, level, forecastPeakAqi, sensitiveGroup, stationName, pollutant, pollutantBreakdown, hasForecast, timeContext, divergenceNote } = JSON.parse(raw || '{}')
+            const { aqi, level, forecastPeakAqi, sensitiveGroup, stationName, pollutant, pollutantBreakdown, hasForecast, timeContext } = JSON.parse(raw || '{}')
             if (typeof aqi !== 'number' || typeof forecastPeakAqi !== 'number' || !level) {
               res.statusCode = 400
               res.end(JSON.stringify({ error: 'Expected { aqi, level, forecastPeakAqi, sensitiveGroup }.' }))
@@ -137,9 +137,6 @@ function apiKeyProxyPlugin(env: Record<string, string>): Plugin {
                   ? '' // Would be misleading noise next to an already-past or already-forecast reading — omit it.
                   : `Forecast peak AQI is ${forecastPeakAqi}.`,
               sensitiveGroup ? 'The person has indicated they are in an AQI-sensitive group.' : '',
-              divergenceNote
-                ? `Additional context: ${divergenceNote} Mention this briefly if it seems relevant, but don't let it dominate the summary.`
-                : '',
               `EPA/AirNow's actual published cautionary guidance for this category: ${advice}.`,
               timeGuidance ? `Separately, ${timeGuidance} — present this as a rough rule of thumb, explicitly NOT as an EPA number, if you mention it at all.` : '',
               isPastOrFuture
@@ -151,29 +148,28 @@ function apiKeyProxyPlugin(env: Record<string, string>): Plugin {
               .filter(Boolean)
               .join(' ')
 
-            const upstream = await fetch('https://api.anthropic.com/v1/messages', {
-              method: 'POST',
-              headers: {
-                'content-type': 'application/json',
-                'x-api-key': key,
-                'anthropic-version': '2023-06-01'
-              },
-              body: JSON.stringify({
-                model: 'claude-haiku-4-5-20251001',
-                max_tokens: 200,
-                messages: [{ role: 'user', content: prompt }]
-              })
-            })
+            const upstream = await fetch(
+              `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,
+              {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({
+                  contents: [{ parts: [{ text: prompt }] }],
+                  generationConfig: { maxOutputTokens: 200 }
+                })
+              }
+            )
 
             if (!upstream.ok) {
               res.statusCode = 502
-              res.end(JSON.stringify({ error: `Anthropic API request failed: ${upstream.status}` }))
+              res.end(JSON.stringify({ error: `Gemini API request failed: ${upstream.status}` }))
               return
             }
 
             const data = await upstream.json()
-            const text = (data.content ?? [])
-              .map((block: { type: string; text?: string }) => (block.type === 'text' ? block.text : ''))
+            const text = (data.candidates ?? [])
+              .flatMap((c: { content?: { parts?: { text?: string }[] } }) => c.content?.parts ?? [])
+              .map((part: { text?: string }) => part.text ?? '')
               .filter(Boolean)
               .join(' ')
               .trim()
@@ -182,7 +178,7 @@ function apiKeyProxyPlugin(env: Record<string, string>): Plugin {
             res.end(JSON.stringify({ summary: text || null }))
           } catch {
             res.statusCode = 502
-            res.end(JSON.stringify({ error: 'Could not reach the Anthropic API.' }))
+            res.end(JSON.stringify({ error: 'Could not reach the Gemini API.' }))
           }
         })
       })
