@@ -1,8 +1,11 @@
 import { ExposureStats } from '../types'
 
 export default function StatStrip({ stats }: { stats: ExposureStats }) {
+  // "Current AQI" used to live here too, but AqiGauge now owns that number
+  // as the screen's primary focal point — repeating it here was a
+  // redundant status surface (see UI rebuild notes). Only the two stats
+  // the gauge doesn't already show remain.
   const items = [
-    { label: 'Current AQI', value: stats.currentAqi },
     { label: 'This month', value: `${stats.daysUnhealthyThisMonth} days` },
     { label: 'Forecast peak', value: stats.forecastPeakAqi }
   ]
@@ -32,7 +35,9 @@ export default function StatStrip({ stats }: { stats: ExposureStats }) {
           // stops the value from wrapping mid-number as a second line of
           // defense, and tabular-nums keeps digit widths consistent so the
           // three boxes don't visibly jitter in width as values update.
-          className="shrink-0 min-w-[100px] bg-ink-100 dark:bg-night-700 rounded-xl px-3 py-2.5"
+          // flex-1 (now that only 2 boxes remain) lets them split the row
+          // evenly instead of leaving dead space where "Current AQI" was.
+          className="shrink-0 flex-1 min-w-[100px] bg-ink-100 dark:bg-night-700 rounded-xl px-3 py-2.5"
         >
           <p className="text-xs text-ink-600 dark:text-night-200 m-0 whitespace-nowrap">{item.label}</p>
           <p className="text-xl font-medium tabular-nums text-ink-900 dark:text-night-100 m-0 mt-1 whitespace-nowrap">
