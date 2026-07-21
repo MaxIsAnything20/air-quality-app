@@ -66,7 +66,7 @@ export default function SummaryCard({ summary, loading, usingFallback, region, s
           Category guidance is paraphrased from EPA/AirNow's published cautionary statements. Any
           specific minute estimate is a rough rule of thumb, not an official EPA figure — not a
           substitute for medical advice.
-          {usingFallback && ' Generated locally — AI summary unavailable (needs ANTHROPIC_API_KEY set server-side).'}
+          {usingFallback && ' Generated locally — AI summary unavailable (needs GEMINI_API_KEY set server-side).'}
         </p>
       )}
     </div>
