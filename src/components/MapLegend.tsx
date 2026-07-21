@@ -30,7 +30,7 @@ export default function MapLegend({ activeLayer }: { activeLayer: Layer }) {
   const [isOpen, setIsOpen] = useState(false)
 
   return (
-    <div className="absolute bottom-3 left-3 z-[1200] max-w-[220px]">
+          <div className="absolute bottom-11 right-14 z-[1200] max-w-[220px]">
       {isOpen && (
         <div className="mb-1.5 bg-white dark:bg-night-800 border border-ink-200 dark:border-night-600 rounded-lg shadow-lg p-3 max-h-[260px] overflow-y-auto">
           <div className="flex items-center justify-between mb-2">
