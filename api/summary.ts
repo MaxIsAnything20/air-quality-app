@@ -24,6 +24,13 @@
 // the way a pinned version does. See
 // https://ai.google.dev/gemini-api/docs/models for details if this ever
 // needs revisiting.
+//
+// thinkingConfig.thinkingBudget: 0 turns off "thinking" mode, which is on
+// by default for 2.5/3.x Flash models. Without this, the model spends its
+// maxOutputTokens budget on internal reasoning tokens before it ever
+// writes the actual sentence, which truncated/garbled real responses in
+// testing — this is a short, low-stakes summary task with no need for
+// extended reasoning.
 interface SummaryRequestBody {
   aqi: number
   level: string
@@ -141,7 +148,7 @@ export default async function handler(req: any, res: any) {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { maxOutputTokens: 200 }
+          generationConfig: { maxOutputTokens: 300, thinkingConfig: { thinkingBudget: 0 } }
         })
       }
     )
