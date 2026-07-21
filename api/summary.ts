@@ -140,13 +140,11 @@ export default async function handler(req: any, res: any) {
         max_tokens: 200,
         messages: [{ role: 'user', content: prompt }]
       })
-    })
-
       if (!upstream.ok) {
-        const errBody = await upstream.text().catch(() => '')
-        res.status(502).json({ error: `Anthropic API request failed: ${upstream.status}`, detail: errBody })
+        res.status(502).json({ error: `Anthropic API request failed: ${upstream.status}` })
         return
       }
+
 
     const data = await upstream.json()
     const text = (data.content ?? [])
