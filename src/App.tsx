@@ -4,7 +4,6 @@ import SearchBar from './components/SearchBar'
 import ConditionBanner from './components/ConditionBanner'
 import DivergenceBanner from './components/DivergenceBanner'
 import StatStrip from './components/StatStrip'
-import ReportsList from './components/ReportsList'
 import BottomNav, { TabId } from './components/BottomNav'
 import ThemeToggle from './components/ThemeToggle'
 import HistoryView from './components/HistoryView'
@@ -160,7 +159,6 @@ export default function App() {
               step={selectedRegion?.step ?? null}
               onClearRegion={() => setSelectedRegion(null)}
             />
-            <ReportsList reports={air.fieldReports} />
                     </div>
         )}
 
