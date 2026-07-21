@@ -19,20 +19,30 @@ const icons: Record<TabId, JSX.Element> = {
 interface BottomNavProps {
   active: TabId
   onChange: (tab: TabId) => void
+  // Per-tab "there's something new here" indicator — e.g. a divergence
+  // banner or a worsening alert the user hasn't switched to that tab to
+  // see yet. Optional and defaults to none, so existing callers keep
+  // working without any changes.
+  badges?: Partial<Record<TabId, boolean>>
 }
 
-export default function BottomNav({ active, onChange }: BottomNavProps) {
+export default function BottomNav({ active, onChange, badges }: BottomNavProps) {
   return (
     <div className="flex justify-around py-2 border-t border-ink-200 dark:border-night-600">
       {tabs.map((tab) => (
         <button
           key={tab.id}
           onClick={() => onChange(tab.id)}
-          className={`flex flex-col items-center gap-0.5 ${active === tab.id ? 'text-ink-900 dark:text-night-100' : 'text-ink-400 dark:text-night-400'}`}
+          className={`relative flex flex-col items-center gap-0.5 ${active === tab.id ? 'text-ink-900 dark:text-night-100' : 'text-ink-400 dark:text-night-400'}`}
         >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-            {icons[tab.id]}
-          </svg>
+          <span className="relative">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+              {icons[tab.id]}
+            </svg>
+            {badges?.[tab.id] && (
+              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-aqi-unhealthy ring-2 ring-white dark:ring-night-800" />
+            )}
+          </span>
           <span className="text-[10px]">{tab.label}</span>
         </button>
       ))}
