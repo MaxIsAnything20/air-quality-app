@@ -57,7 +57,14 @@ export default function AqiGauge({
   const color = aqiColor[level]
 
   return (
-    <div className="flex flex-col items-center px-4 pt-4 pb-1 border-b border-ink-200 dark:border-night-600">
+    // Blue gradient hero (continues the header's blue from App.tsx into
+    // one seamless panel) — modeled on AirNow's own home screen, where the
+    // dial sits on a bold blue field rather than blending into the page.
+    // The readout below the dial gets its own light card instead of
+    // sitting directly on the blue, since AQI category colors (especially
+    // the darker hazardous maroon) can't be guaranteed to stay legible
+    // against every shade of blue — a light card sidesteps that entirely.
+    <div className="bg-gradient-to-b from-[#2E6DA4] to-[#4A9FD8] dark:from-[#0F2A47] dark:to-[#123A5E] flex flex-col items-center px-4 pt-1 pb-5 rounded-b-[28px]">
       <svg width="220" height="128" viewBox="0 0 240 140" className="overflow-visible">
         {SEGMENTS.map((seg) => (
           <path
@@ -69,26 +76,36 @@ export default function AqiGauge({
             fill="none"
           />
         ))}
-        <line
-          x1={CX}
-          y1={CY}
-          x2={needle.x}
-          y2={needle.y}
-          className="stroke-ink-900 dark:stroke-night-100"
-          strokeWidth={3}
-          strokeLinecap="round"
-        />
-        <circle cx={CX} cy={CY} r={5} className="fill-ink-900 dark:fill-night-100" />
+        <line x1={CX} y1={CY} x2={needle.x} y2={needle.y} stroke="white" strokeWidth={3} strokeLinecap="round" />
+        <circle cx={CX} cy={CY} r={5} fill="white" />
+
+        {/* Scale endpoints (0 / 300+) so the needle's position reads as a
+            point on a known range at a glance, not just "somewhere on an
+            arc" — without these two numbers, first-time users have no
+            sense of how close to the top of the scale a reading is. */}
+        <text x={CX - R} y={CY + 18} textAnchor="middle" fill="white" fillOpacity={0.75} style={{ fontSize: 10 }}>
+          0
+        </text>
+        <text x={CX + R} y={CY + 18} textAnchor="middle" fill="white" fillOpacity={0.75} style={{ fontSize: 10 }}>
+          300+
+        </text>
       </svg>
-      <div className="-mt-6 text-center">
-        <p className="text-4xl font-semibold m-0 tabular-nums" style={{ color }}>
-          {Math.round(value)}
-        </p>
+
+      <div className="-mt-3 text-center bg-white/95 dark:bg-night-900/90 rounded-2xl px-6 py-3 shadow-[0_4px_20px_rgba(0,0,0,0.15)]">
+        <div className="flex items-baseline justify-center gap-1">
+          <p className="text-4xl font-semibold m-0 tabular-nums" style={{ color }}>
+            {Math.round(value)}
+          </p>
+          {/* Labels the big number as an AQI reading on its own, so it's
+              unambiguous even if someone lands on this screen without
+              reading the caption below (or the word "AQI" elsewhere). */}
+          <span className="text-xs font-medium text-ink-400 dark:text-night-400">AQI</span>
+        </div>
         <p className="text-sm font-medium m-0 mt-0.5" style={{ color }}>
           {aqiLevelLabel[level]}
         </p>
         {detail && (
-          <p className="text-xs text-ink-500 dark:text-night-300 m-0 mt-1 max-w-[240px]">
+          <p className="text-xs text-ink-500 dark:text-night-300 m-0 mt-1 max-w-[220px]">
             {detail}
           </p>
         )}
