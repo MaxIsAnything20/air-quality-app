@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import MapView from './components/MapView'
 import SearchBar from './components/SearchBar'
-import ConditionBanner from './components/ConditionBanner'
-import DivergenceBanner from './components/DivergenceBanner'
+import AqiGauge from './components/AqiGauge'
 import StatStrip from './components/StatStrip'
+import ReportsList from './components/ReportsList'
 import BottomNav, { TabId } from './components/BottomNav'
 import ThemeToggle from './components/ThemeToggle'
 import HistoryView from './components/HistoryView'
@@ -16,7 +16,6 @@ import { useSummary } from './hooks/useSummary'
 import { useAlertNotifications } from './hooks/useAlertNotifications'
 import { AlertSettings, loadAlertSettings, saveAlertSettings } from './services/alertSettings'
 import { HealthProfile, isSensitiveGroup, loadHealthProfile, saveHealthProfile } from './services/profile'
-import { detectDivergence, summarizeDivergence } from './services/divergence'
 import { RegionSelection } from './types'
 
 export default function App() {
@@ -48,23 +47,6 @@ export default function App() {
   // can never trigger a real browser notification.
   useAlertNotifications(air.usingSampleData ? null : air.stats.currentAqi, alertSettings)
 
-  // Cross-checks official AirNow readings against nearby PurpleAir sensors
-  // — flags sensors reading notably worse than the nearest official
-  // station, a signal official data (updated hourly) hasn't caught up to
-  // yet. Skipped on sample data for the same reason the AI summary call
-  // is: no point flagging "divergence" between two sets of made-up numbers.
-  const divergenceAlerts = useMemo(() => {
-    if (air.usingSampleData || air.purpleAirUsingSampleData) return []
-    return detectDivergence(air.aqiReadings, air.purpleAirReadings)
-  }, [air.usingSampleData, air.purpleAirUsingSampleData, air.aqiReadings, air.purpleAirReadings])
-
-  const divergenceNote = useMemo(() => summarizeDivergence(divergenceAlerts), [divergenceAlerts])
-
-  const divergentSensorIds = useMemo(
-    () => new Set(divergenceAlerts.map((a) => a.sensor.id)),
-    [divergenceAlerts]
-  )
-
   const summary = useSummary(
     air.stats.currentAqi,
     air.alert.level,
@@ -72,8 +54,7 @@ export default function App() {
     healthProfile,
     air.usingSampleData,
     selectedRegion?.reading ?? null,
-    selectedRegion?.step ?? null,
-    divergenceNote
+    selectedRegion?.step ?? null
   )
 
   function handleAlertSettingsChange(next: AlertSettings) {
@@ -85,6 +66,11 @@ export default function App() {
     setHealthProfile(next)
     saveHealthProfile(next)
   }
+
+  // Flags the Alerts tab with a dot whenever conditions are worth a look
+  // and the user isn't already on that tab — a passive nudge instead of a
+  // banner competing with the map for attention.
+  const alertsNeedAttention = air.alert.level !== 'good' && activeTab !== 'alerts'
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-ink-200 dark:bg-night-900 p-0 sm:p-6 transition-colors">
@@ -100,34 +86,8 @@ export default function App() {
           </div>
         </div>
 
-        {air.usingSampleData && air.status === 'error' && (
-          <div className="px-4 py-2 text-xs text-ink-600 dark:text-night-200 bg-ink-100 dark:bg-night-700 border-b border-ink-200 dark:border-night-600">
-            Showing sample data — {air.errorMessage ?? 'set AIRNOW_API_KEY on the server to see live conditions.'}
-          </div>
-        )}
-
-        {!air.usingSampleData && air.smokeUsingSampleData && (
-          <div className="px-4 py-2 text-xs text-ink-600 dark:text-night-200 bg-ink-100 dark:bg-night-700 border-b border-ink-200 dark:border-night-600">
-            Showing sample smoke data — NOAA feed unreachable.
-          </div>
-        )}
-
-        {!air.usingSampleData && air.fireUsingSampleData && (
-          <div className="px-4 py-2 text-xs text-ink-600 dark:text-night-200 bg-ink-100 dark:bg-night-700 border-b border-ink-200 dark:border-night-600">
-            Showing sample fire data — NOAA feed unreachable.
-          </div>
-        )}
-
-        {!air.usingSampleData && air.purpleAirUsingSampleData && (
-          <div className="px-4 py-2 text-xs text-ink-600 dark:text-night-200 bg-ink-100 dark:bg-night-700 border-b border-ink-200 dark:border-night-600">
-            {air.purpleAirMissingKey
-              ? 'Showing sample PurpleAir data — set PURPLEAIR_API_KEY on the server to see real sensors nearby.'
-              : 'Showing sample PurpleAir data — request failed.'}
-          </div>
-        )}
-
         {activeTab === 'map' && (
-          <div className="flex-1 overflow-y-auto">
+          <>
             <SearchBar
               onSelectLocation={(result) =>
                 air.searchLocation({ lat: result.lat, lng: result.lng }, result.label)
@@ -135,12 +95,53 @@ export default function App() {
               activeLabel={air.activeLocationLabel}
               onClear={air.clearLocationOverride}
             />
+
+            {/* Sample-data notices moved below the search bar (they used to
+                sit above everything, including the header's own tab
+                content, pushing the map and gauge further down the screen
+                on first load — a first-time user's very first impression
+                of the app was a wall of grey warning text). They're still
+                the first thing seen inside the map tab, just no longer
+                ahead of the controls that let you act on them. */}
+            {air.usingSampleData && air.status === 'error' && (
+              <div className="px-4 py-2 text-xs text-ink-600 dark:text-night-200 bg-ink-100 dark:bg-night-700 border-b border-ink-200 dark:border-night-600">
+                Showing sample data — {air.errorMessage ?? 'set AIRNOW_API_KEY on the server to see live conditions.'}
+              </div>
+            )}
+
+            {!air.usingSampleData && air.smokeUsingSampleData && (
+              <div className="px-4 py-2 text-xs text-ink-600 dark:text-night-200 bg-ink-100 dark:bg-night-700 border-b border-ink-200 dark:border-night-600">
+                Showing sample smoke data — NOAA feed unreachable.
+              </div>
+            )}
+
+            {!air.usingSampleData && air.fireUsingSampleData && (
+              <div className="px-4 py-2 text-xs text-ink-600 dark:text-night-200 bg-ink-100 dark:bg-night-700 border-b border-ink-200 dark:border-night-600">
+                Showing sample fire data — NOAA feed unreachable.
+              </div>
+            )}
+
+            {!air.usingSampleData && air.purpleAirUsingSampleData && (
+              <div className="px-4 py-2 text-xs text-ink-600 dark:text-night-200 bg-ink-100 dark:bg-night-700 border-b border-ink-200 dark:border-night-600">
+                {air.purpleAirMissingKey
+                  ? 'Showing sample PurpleAir data — set PURPLEAIR_API_KEY on the server to see real sensors nearby.'
+                  : 'Showing sample PurpleAir data — request failed.'}
+              </div>
+            )}
+
+            {/* AqiGauge replaces the old ConditionBanner: one dial owns the
+                "what's the number and what does it mean" job instead of
+                splitting it across a colored strip here and a repeated
+                number in StatStrip below. It's the first thing after the
+                search bar, since it's the single fact this app exists to
+                answer. */}
+            <AqiGauge value={air.stats.currentAqi} level={air.alert.level} detail={air.alert.detail} />
+
             <MapView
               aqiReadings={air.aqiReadings}
               fieldReports={air.fieldReports}
               smokePolygons={air.smokePolygons}
               purpleAirReadings={air.purpleAirReadings}
-              divergentSensorIds={divergentSensorIds}
               center={air.center}
               pastMapDates={air.pastMapDates}
               getMapSnapshotForDate={air.getMapSnapshotForDate}
@@ -148,8 +149,6 @@ export default function App() {
               selectedRegion={selectedRegion}
               onSelectRegion={setSelectedRegion}
             />
-            <ConditionBanner alert={air.alert} />
-            <DivergenceBanner alerts={divergenceAlerts} />
             <StatStrip stats={air.stats} />
             <SummaryCard
               summary={summary.summary}
@@ -159,7 +158,10 @@ export default function App() {
               step={selectedRegion?.step ?? null}
               onClearRegion={() => setSelectedRegion(null)}
             />
-                    </div>
+            <div className="flex-1 overflow-y-auto">
+              <ReportsList reports={air.fieldReports} />
+            </div>
+          </>
         )}
 
         {activeTab === 'history' && (
@@ -175,7 +177,6 @@ export default function App() {
             settings={alertSettings}
             onChange={handleAlertSettingsChange}
             sensitiveProfile={isSensitiveGroup(healthProfile)}
-            center={air.center}
           />
         )}
 
@@ -183,7 +184,7 @@ export default function App() {
           <ProfileView profile={healthProfile} onChange={handleProfileChange} />
         )}
 
-        <BottomNav active={activeTab} onChange={setActiveTab} />
+        <BottomNav active={activeTab} onChange={setActiveTab} badges={{ alerts: alertsNeedAttention }} />
       </div>
     </div>
   )
