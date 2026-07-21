@@ -149,7 +149,7 @@ function apiKeyProxyPlugin(env: Record<string, string>): Plugin {
               .join(' ')
 
             const upstream = await fetch(
-              `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,
+              `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${key}`,
               {
                 method: 'POST',
                 headers: { 'content-type': 'application/json' },
