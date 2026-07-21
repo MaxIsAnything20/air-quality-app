@@ -1,8 +1,8 @@
 // Backs the AI-generated plain-language summary (README "Next steps" #2),
 // including per-region summaries when the person taps a specific AQI
-// monitor on the map. ANTHROPIC_API_KEY lives only here — the client
+// monitor on the map. GEMINI_API_KEY lives only here — the client
 // (src/services/summary.ts) just POSTs the current numbers and gets a
-// sentence back. If this endpoint isn't deployed or ANTHROPIC_API_KEY isn't
+// sentence back. If this endpoint isn't deployed or GEMINI_API_KEY isn't
 // set, the client falls back to the local rule-based generator in
 // src/hooks/useSummary.ts — same "never just breaks" pattern as the rest
 // of the app.
@@ -13,9 +13,13 @@
 // we hand it the correct advice/time limit for this category and ask it to
 // phrase that into a sentence, not derive it from scratch.
 //
-// NOTE: the model name below hasn't been exercised against a live account
-// from this environment — check it against Anthropic's current model list
-// before relying on it, and adjust max_tokens/prompt to taste.
+// NOTE: uses Google's Gemini API free tier (gemini-2.5-flash, via the
+// generateContent REST endpoint) — 1,500 requests/day, no billing account
+// needed, as of when this was written. Check
+// https://ai.google.dev/gemini-api/docs/models for the current free-tier
+// model list before relying on this, since Google periodically changes
+// which models are free (Pro-tier models started requiring billing in
+// April 2026; Flash models did not).
 interface SummaryRequestBody {
   aqi: number
   level: string
@@ -29,10 +33,6 @@ interface SummaryRequestBody {
    *  slider step a region reading came from — determines whether the
    *  prompt says "is currently," "is forecast to be," or "was." */
   timeContext?: string | null
-  /** One-sentence factual note from src/services/divergence.ts when nearby
-   *  PurpleAir sensors read notably worse than the official station.
-   *  Optional grounding context — most requests won't have one. */
-  divergenceNote?: string | null
 }
 
 // Same "duplicated, not imported" reasoning as AQI_GUIDANCE below — this
@@ -74,15 +74,15 @@ export default async function handler(req: any, res: any) {
     return
   }
 
-  const apiKey = process.env.ANTHROPIC_API_KEY
+  const apiKey = process.env.GEMINI_API_KEY
   if (!apiKey) {
-    res.status(501).json({ error: 'ANTHROPIC_API_KEY is not set on the server.' })
+    res.status(501).json({ error: 'GEMINI_API_KEY is not set on the server.' })
     return
   }
 
   const body: Partial<SummaryRequestBody> =
     typeof req.body === 'string' ? JSON.parse(req.body || '{}') : req.body ?? {}
-  const { aqi, level, forecastPeakAqi, sensitiveGroup, stationName, pollutant, pollutantBreakdown, hasForecast, timeContext, divergenceNote } = body
+  const { aqi, level, forecastPeakAqi, sensitiveGroup, stationName, pollutant, pollutantBreakdown, hasForecast, timeContext } = body
 
   if (typeof aqi !== 'number' || typeof forecastPeakAqi !== 'number' || !level) {
     res.status(400).json({ error: 'Expected { aqi, level, forecastPeakAqi, sensitiveGroup } in the request body.' })
@@ -94,6 +94,11 @@ export default async function handler(req: any, res: any) {
   const guidance = AQI_GUIDANCE[level as AqiLevel]
   const advice = sensitiveGroup && guidance?.sensitiveAdvice ? guidance.sensitiveAdvice : guidance?.generalAdvice
   const maxMinutes = sensitiveGroup ? guidance?.sensitiveMaxMinutes : guidance?.generalMaxMinutes
+  // maxMinutes is an illustrative estimate WE made up, not an EPA figure —
+  // EPA's actual Cautionary Statements/Activity Guides are qualitative
+  // ("reduce prolonged exertion"), not tied to a clock time. Keep that
+  // distinction visible to the model so it doesn't present the estimate
+  // as more authoritative than it is.
   const timeGuidance =
     maxMinutes === null || maxMinutes === undefined || maxMinutes === 0
       ? null
@@ -110,12 +115,9 @@ export default async function handler(req: any, res: any) {
     hasForecast === false
       ? "No forecast is available for this specific station — don't state or imply one."
       : isPastOrFuture
-        ? ''
+        ? '' // Forecast peak AQI would be misleading noise next to an already-past or already-forecast reading — omit it.
         : `Forecast peak AQI is ${forecastPeakAqi}.`,
     sensitiveGroup ? 'The person has indicated they are in an AQI-sensitive group.' : '',
-    divergenceNote
-      ? `Additional context: ${divergenceNote} Mention this briefly if it seems relevant, but don't let it dominate the summary.`
-      : '',
     `EPA/AirNow's actual published cautionary guidance for this category: ${advice}.`,
     timeGuidance ? `Separately, ${timeGuidance} — present this as a rough rule of thumb, explicitly NOT as an EPA number, if you mention it at all.` : '',
     isPastOrFuture
@@ -128,38 +130,38 @@ export default async function handler(req: any, res: any) {
     .join(' ')
 
   try {
-    const upstream = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01'
-      },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 200,
-        messages: [{ role: 'user', content: prompt }]
-      })
-      if (!upstream.ok) {
-        res.status(502).json({ error: `Anthropic API request failed: ${upstream.status}` })
-        return
+    const upstream = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { maxOutputTokens: 200 }
+        })
       }
+    )
 
+    if (!upstream.ok) {
+      res.status(502).json({ error: `Gemini API request failed: ${upstream.status}` })
+      return
+    }
 
     const data = await upstream.json()
-    const text = (data.content ?? [])
-      .map((block: { type: string; text?: string }) => (block.type === 'text' ? block.text : ''))
+    const text = (data.candidates ?? [])
+      .flatMap((c: { content?: { parts?: { text?: string }[] } }) => c.content?.parts ?? [])
+      .map((part: { text?: string }) => part.text ?? '')
       .filter(Boolean)
       .join(' ')
       .trim()
 
     if (!text) {
-      res.status(502).json({ error: 'Anthropic API returned no text.' })
+      res.status(502).json({ error: 'Gemini API returned no text.' })
       return
     }
 
     res.status(200).json({ summary: text })
   } catch (err) {
-    res.status(502).json({ error: 'Could not reach the Anthropic API.' })
+    res.status(502).json({ error: 'Could not reach the Gemini API.' })
   }
 }
