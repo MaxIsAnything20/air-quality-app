@@ -16,7 +16,7 @@ plain-language AI summary.
 ```bash
 npm install
 cp .env.example .env
-# add your AirNow / PurpleAir / (optional) Anthropic keys to .env — see below
+# add your AirNow / PurpleAir / (optional) Gemini keys to .env — see below
 npm run dev
 ```
 
@@ -48,19 +48,25 @@ shows a small banner saying so — it never just breaks.
 Also free. Same fallback behavior as AirNow: no key or a failed request
 just shows sample sensor data with its own banner.
 
-## Getting an Anthropic API key (optional)
+## Getting a Gemini API key (optional)
 
 Only needed for the AI-generated plain-language summary on the map tab.
 
-1. Go to https://console.anthropic.com and create a key
-2. Paste it into `.env` as `ANTHROPIC_API_KEY=your-key-here`
+1. Go to https://aistudio.google.com/apikey and sign in with a Google account
+2. Click "Create API key" — no billing account required
+3. Paste it into `.env` as `GEMINI_API_KEY=your-key-here`
+
+Free tier (as of when this was written): 1,500 requests/day on Gemini's
+Flash models, no card needed, no expiration — plenty for one short summary
+per page load. Just don't enable billing on the Google Cloud project tied
+to the key, since that removes the free tier.
 
 Without it, the summary card still shows a sentence — just one built
 locally by a rule-based fallback instead of the model — and says so.
 
 ## Keys are server-side
 
-`AIRNOW_API_KEY`, `PURPLEAIR_API_KEY`, and `ANTHROPIC_API_KEY` are
+`AIRNOW_API_KEY`, `PURPLEAIR_API_KEY`, and `GEMINI_API_KEY` are
 deliberately **not** prefixed with `VITE_`. That prefix is what tells Vite
 to inline a value into the client bundle — since these keys should never
 ship in browser-visible JS, none of them use it.
@@ -116,7 +122,7 @@ ship in browser-visible JS, none of them use it.
   history yet, the History tab shows a fabricated sample curve instead
   (clearly labeled) until real days accumulate — there's no way to
   retroactively backfill days before the app was first opened.
-- **AI-generated plain-language summary** — real, via Anthropic's API
+- **AI-generated plain-language summary** — real, via Google's Gemini API
   through `/api/summary` (`src/services/summary.ts` +
   `src/hooks/useSummary.ts`). Takes current AQI, forecast peak, and
   whether your saved health profile has any conditions noted, and returns
@@ -136,7 +142,7 @@ ship in browser-visible JS, none of them use it.
   and the AI prompt as an illustrative rule of thumb, not medical advice.
   Skipped entirely (no wasted request) while the rest of the app is
   showing sample data. Falls back to a local, rule-based sentence if
-  `ANTHROPIC_API_KEY` isn't set or the request fails — same "never just
+  `GEMINI_API_KEY` isn't set or the request fails — same "never just
   breaks" pattern as everything else.
 - **Full per-pollutant breakdown** — real, part of the same AirNow
   response already being fetched. AirNow reports one AQI per pollutant
@@ -269,9 +275,8 @@ api/
   email/text alerts (`https://www.enviroflash.info/`, verified as the
   correct live signup) for anyone who wants notifications independent of
   the browser tab being open — a real substitute, not a built feature.
-- **The Anthropic model name in `api/summary.ts` / `vite.config.ts`
-  (`claude-haiku-4-5-20251001`) has been checked against Anthropic's
-  current model docs and is a real, current model string as of this
-  writing** — but re-verify at <https://docs.claude.com> if you're
-  reading this a while after this README was last touched, since model
-  availability changes.
+- **The Gemini model name in `api/summary.ts` / `vite.config.ts`
+  (`gemini-2.5-flash`) is a real, current free-tier model as of this
+  writing** — but re-verify at <https://ai.google.dev/gemini-api/docs/models>
+  if you're reading this a while after this README was last touched, since
+  Google periodically changes which models are on the free tier.
