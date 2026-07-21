@@ -11,7 +11,10 @@ export default function ThemeToggle({ theme, onToggle }: Props) {
     <button
       onClick={onToggle}
       aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
-      className="w-8 h-8 flex items-center justify-center rounded-full text-ink-600 dark:text-night-200 hover:text-ink-900 dark:hover:text-night-100"
+      // Lives on the blue header/gauge hero now (see App.tsx) — that hero
+      // is a dark-ish blue in both light and dark mode, so this only needs
+      // one white-on-blue treatment instead of separate light/dark classes.
+      className="w-8 h-8 flex items-center justify-center rounded-full text-white/85 hover:text-white hover:bg-white/10"
     >
       {isDark ? (
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
