@@ -239,7 +239,7 @@ export default function HomeView({
             className="bg-ink-100 dark:bg-night-700 rounded-2xl p-3.5 text-left"
           >
             <p className="text-sm font-medium text-ink-900 dark:text-night-100 m-0">Groups</p>
-            <p className="text-sm text-ink-900 dark:text-night-100 m-0 mt-1">Join a group</p>
+            <p className="text-sm text-ink-900 dark:text-night-100 m-0 mt-1">Join a leaderboard</p>
             <p className="text-[11px] text-ink-400 dark:text-night-400 m-0 mt-0.5">
               Compare your exposure with others
             </p>
