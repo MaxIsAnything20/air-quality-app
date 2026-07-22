@@ -8,6 +8,7 @@ import {
   startActivity,
   stopActivity,
 } from '../services/activityLog'
+import { sendActivitySummaryPush } from '../services/pushSubscription'
 
 // Ignore GPS jitter smaller than this before logging a new point — phone
 // GPS noise while standing still can otherwise add fake "distance."
@@ -144,7 +145,14 @@ export function useActivityTracking(aqiReadings: AqiReading[]) {
     const finished = stopActivity(active.id)
     setActive(null)
     lastPointRef.current = null
-    if (finished) refreshHistory()
+    if (finished) {
+      refreshHistory()
+      // Fire-and-forget — this is a bonus push notification on top of the
+      // in-app activity summary, never something the rest of the app
+      // depends on. sendActivitySummaryPush() already catches its own
+      // errors internally, so there's nothing to await/handle here.
+      void sendActivitySummaryPush(finished)
+    }
   }, [active, stopWatch, refreshHistory])
 
   const discard = useCallback(() => {
