@@ -19,7 +19,11 @@ import { useActivityTracking } from './hooks/useActivityTracking'
 import { AlertSettings, loadAlertSettings, saveAlertSettings } from './services/alertSettings'
 import { HealthProfile, isSensitiveGroup, loadHealthProfile, saveHealthProfile } from './services/profile'
 import { detectDivergence, summarizeDivergence } from './services/divergence'
+import { getRecentDailyHistory } from './services/historyLog'
+import { computeExposureScore } from './services/exposureScore'
 import { RegionSelection } from './types'
+
+const EXPOSURE_SCORE_WINDOW_DAYS = 7
 
 export default function App() {
   const { theme, toggleTheme } = useTheme()
@@ -69,6 +73,23 @@ export default function App() {
   const divergentSensorIds = useMemo(
     () => new Set(divergenceAlerts.map((a) => a.sensor.id)),
     [divergenceAlerts]
+  )
+
+  // A personal, rolling exposure score (see services/exposureScore.ts) —
+  // combines the last 7 days of logged ambient AQI with any completed
+  // activities in that window. getRecentDailyHistory reads localStorage
+  // directly rather than coming from `air`, so it's recomputed off
+  // air.monthlyHistory (which changes whenever a new day gets logged) and
+  // activityTracking.history as the closest available "something changed,
+  // recheck" signals, rather than polling on its own.
+  const exposureScore = useMemo(
+    () =>
+      computeExposureScore(
+        getRecentDailyHistory(EXPOSURE_SCORE_WINDOW_DAYS),
+        activityTracking.history,
+        isSensitiveGroup(healthProfile)
+      ),
+    [air.monthlyHistory, activityTracking.history, healthProfile]
   )
 
   const summary = useSummary(
@@ -221,6 +242,7 @@ export default function App() {
             monthlyHistory={air.monthlyHistory}
             stats={air.stats}
             usingSampleData={air.historyUsingSampleData}
+            exposureScore={exposureScore}
           />
         )}
 
