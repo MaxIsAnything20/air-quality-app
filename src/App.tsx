@@ -7,6 +7,7 @@ import StatStrip from './components/StatStrip'
 import ThemeToggle from './components/ThemeToggle'
 import HistoryView from './components/HistoryView'
 import SummaryCard from './components/SummaryCard'
+import PollutantBreakdownCard from './components/PollutantBreakdownCard'
 import ActivityView from './components/ActivityView'
 import HomeView from './components/HomeView'
 import HamburgerMenu, { ScreenId } from './components/HamburgerMenu'
@@ -268,6 +269,11 @@ export default function App() {
               onSelectRegion={setSelectedRegion}
             />
             <StatStrip stats={air.stats} />
+            <PollutantBreakdownCard
+              lat={air.center[0]}
+              lng={air.center[1]}
+              usingSampleData={air.usingSampleData}
+            />
             <SummaryCard
               summary={summary.summary}
               loading={summary.loading}
