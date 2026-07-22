@@ -22,23 +22,23 @@ export interface AqiReading {
   /** e.g. "San Francisco, CA" — the AirNow reporting area/station name. */
   stationName: string
   /** The pollutant driving this reading, e.g. "PM2.5" or "OZONE" — always
-   *  the same as pollutants[0].parameter when pollutants is present. */
+   * the same as pollutants[0].parameter when pollutants is present. */
   pollutant: string
   /** Human-readable observation time, e.g. "Jul 19, 2:00 PM PDT". */
   observedAt: string
   /** All pollutants AirNow reported for this station, worst first —
-   *  AirNow's own AQI is just the worst of these, but a station can be
-   *  "Moderate" overall while also reporting an elevated second pollutant
-   *  that's worth seeing. Optional since the single-reading fallback path
-   *  doesn't always have it; UI should handle undefined/length-1 gracefully. */
+   * AirNow's own AQI is just the worst of these, but a station can be
+   * "Moderate" overall while also reporting an elevated second pollutant
+   * that's worth seeing. Optional since the single-reading fallback path
+   * doesn't always have it; UI should handle undefined/length-1 gracefully. */
   pollutants?: PollutantReading[]
 }
 
 /** A specific AQI monitor tapped on the map, paired with which time slider
- *  step it came from ('today' | 'tomorrow' | an ISO past date). Without the
- *  step, downstream consumers (the AI summary, the summary card) have no
- *  way to know a reading is a forecast or a three-day-old snapshot rather
- *  than live — see src/utils/timeSteps.ts. */
+ * step it came from ('today' | 'tomorrow' | an ISO past date). Without the
+ * step, downstream consumers (the AI summary, the summary card) have no
+ * way to know a reading is a forecast or a three-day-old snapshot rather
+ * than live — see src/utils/timeSteps.ts. */
 export interface RegionSelection {
   reading: AqiReading
   step: string
@@ -126,4 +126,101 @@ export interface SmokePolygon {
   satellite: string | null
   /** [lng, lat][] ring, matches GeoJSON polygon ring order */
   coordinates: [number, number][]
+}
+
+// --- Activity tracking (foreground-only — see services/activityLog.ts for
+// why, and the README's "Roadmap" section for what a native rebuild adds) ---
+
+export type ActivityType =
+  | 'run'
+  | 'trailRun'
+  | 'walk'
+  | 'strollerWalk'
+  | 'dogWalk'
+  | 'hike'
+  | 'roadCycle'
+  | 'mountainBike'
+  | 'commuteWalk'
+  | 'commuteCycle'
+  | 'commuteDrive'
+  | 'commuteTransit'
+  | 'skateboard'
+  | 'scooter'
+  | 'wheelchair'
+  | 'swimOutdoor'
+  | 'yogaOutdoor'
+  | 'gardening'
+  | 'outdoorWork'
+  | 'picnic'
+  | 'camping'
+  | 'fishing'
+  | 'golf'
+  | 'tennisOutdoor'
+  | 'soccer'
+  | 'basketballOutdoor'
+  | 'other'
+
+export const ACTIVITY_TYPE_LABELS: Record<ActivityType, string> = {
+  run: 'Run',
+  trailRun: 'Trail run',
+  walk: 'Walk',
+  strollerWalk: 'Stroller walk',
+  dogWalk: 'Dog walk',
+  hike: 'Hike',
+  roadCycle: 'Road cycle',
+  mountainBike: 'Mountain bike',
+  commuteWalk: 'Commute (walk)',
+  commuteCycle: 'Commute (cycle)',
+  commuteDrive: 'Commute (drive)',
+  commuteTransit: 'Commute (transit)',
+  skateboard: 'Skateboard',
+  scooter: 'Scooter',
+  wheelchair: 'Wheelchair',
+  swimOutdoor: 'Outdoor swim',
+  yogaOutdoor: 'Outdoor yoga',
+  gardening: 'Gardening',
+  outdoorWork: 'Outdoor work',
+  picnic: 'Picnic',
+  camping: 'Camping',
+  fishing: 'Fishing',
+  golf: 'Golf',
+  tennisOutdoor: 'Tennis',
+  soccer: 'Soccer',
+  basketballOutdoor: 'Basketball',
+  other: 'Other'
+}
+
+/** Groups activity types for the picker UI so dozens of options stay
+ * scannable instead of one long flat list. */
+export const ACTIVITY_TYPE_GROUPS: { label: string; types: ActivityType[] }[] = [
+  { label: 'Cardio', types: ['run', 'trailRun', 'walk', 'strollerWalk', 'dogWalk', 'hike', 'roadCycle', 'mountainBike'] },
+  { label: 'Commute', types: ['commuteWalk', 'commuteCycle', 'commuteDrive', 'commuteTransit'] },
+  { label: 'Rolling', types: ['skateboard', 'scooter', 'wheelchair'] },
+  { label: 'Sport', types: ['swimOutdoor', 'golf', 'tennisOutdoor', 'soccer', 'basketballOutdoor'] },
+  { label: 'Outdoor time', types: ['yogaOutdoor', 'gardening', 'outdoorWork', 'picnic', 'camping', 'fishing', 'other'] }
+]
+
+/** A single geo-timestamped sample recorded during an activity. nearestAqi
+ * is filled in opportunistically from whichever AQI station reading was
+ * closest at the moment the point was recorded — not a full route-pollution
+ * model (that's the separate exposure-score roadmap item), just the best
+ * real number available at tracking time. */
+export interface ActivityPoint {
+  lat: number
+  lng: number
+  timestamp: number
+  nearestAqi: number | null
+}
+
+export interface Activity {
+  id: string
+  type: ActivityType
+  startedAt: number
+  endedAt: number | null
+  points: ActivityPoint[]
+  // 'active' survives a page reload (see services/activityLog.ts) so an
+  // interrupted session can be resumed or explicitly discarded instead of
+  // silently vanishing — the closest a browser tab can get to "handle
+  // app-closed-mid-activity gracefully" without a native background process.
+  status: 'active' | 'completed' | 'discarded'
 }
