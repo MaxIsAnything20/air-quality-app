@@ -141,4 +141,3 @@ export default function SettingsConnectionsView({ onBack }: SettingsConnectionsV
         </div>
       )
 }
-</div>
