@@ -11,6 +11,9 @@ interface HomeViewProps {
   exposureScore: ExposureScoreResult | null
   streak: number
   badgeEarned: boolean
+  eventBadgeEarned: boolean
+  upcomingEventsCount: number
+  nextEventName: string | null
   onNavigate: (screen: ScreenId) => void
   onOpenMenu: () => void
 }
@@ -102,6 +105,9 @@ export default function HomeView({
   exposureScore,
   streak,
   badgeEarned,
+  eventBadgeEarned,
+  upcomingEventsCount,
+  nextEventName,
   onNavigate,
   onOpenMenu
 }: HomeViewProps) {
@@ -120,6 +126,8 @@ export default function HomeView({
     const series = buildEstimatedHourlySeries(currentAqi, forecastPeakAqi, nowHour)
     return formatCleanestWindowLabel(findCleanestWindow(series))
   }, [currentAqi, forecastPeakAqi])
+
+  const totalBadges = (badgeEarned ? 1 : 0) + (eventBadgeEarned ? 1 : 0)
 
   return (
     <div className="flex-1 overflow-y-auto">
@@ -262,10 +270,12 @@ export default function HomeView({
         >
           <p className="text-sm font-medium text-ink-900 dark:text-night-100 m-0">Badges</p>
           <p className="text-sm text-ink-900 dark:text-night-100 m-0 mt-1">
-            {badgeEarned ? '1 badge earned' : 'Start earning'}
+            {totalBadges > 0 ? `${totalBadges} badge${totalBadges === 1 ? '' : 's'} earned` : 'Start earning'}
           </p>
           <p className="text-[11px] text-ink-400 dark:text-night-400 m-0 mt-0.5">
-            {badgeEarned ? 'First activity — unlocked' : '1 badge to unlock'}
+            {totalBadges > 0
+              ? [badgeEarned && 'First activity', eventBadgeEarned && 'Event check-in'].filter(Boolean).join(' · ')
+              : '2 badges to unlock'}
           </p>
           <p className="text-[11px] text-ink-400 dark:text-night-400 m-0 mt-1">
             {streak > 0 ? `🔥 ${streak}-day streak` : 'Check in and hit milestones to earn'}
@@ -319,10 +329,23 @@ export default function HomeView({
           className="w-full bg-ink-100 dark:bg-night-700 rounded-2xl p-4 text-left mb-4"
         >
           <p className="text-sm font-medium text-ink-900 dark:text-night-100 m-0">Events</p>
-          <p className="text-sm text-ink-900 dark:text-night-100 m-0 mt-1">No upcoming events</p>
-          <p className="text-[11px] text-ink-400 dark:text-night-400 m-0 mt-0.5">
-            Air quality for events you attend
-          </p>
+          {upcomingEventsCount > 0 ? (
+            <>
+              <p className="text-sm text-ink-900 dark:text-night-100 m-0 mt-1">
+                {upcomingEventsCount} upcoming event{upcomingEventsCount === 1 ? '' : 's'}
+              </p>
+              <p className="text-[11px] text-ink-400 dark:text-night-400 m-0 mt-0.5">
+                {nextEventName ? `Next: ${nextEventName}` : 'Air quality for events you attend'}
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-sm text-ink-900 dark:text-night-100 m-0 mt-1">No upcoming events</p>
+              <p className="text-[11px] text-ink-400 dark:text-night-400 m-0 mt-0.5">
+                Air quality for events you attend
+              </p>
+            </>
+          )}
         </button>
       </div>
     </div>
