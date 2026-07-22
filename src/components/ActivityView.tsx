@@ -37,6 +37,25 @@ function formatDistance(meters: number): string {
   return `${km.toFixed(km < 10 ? 2 : 1)} km`
 }
 
+/** Plain-text share payload for the Web Share API / clipboard fallback —
+ * deliberately simple (no links, no HTML) since navigator.share's text
+ * field is what shows up verbatim in whatever app the person shares to. */
+function buildShareText(activity: Activity): string {
+  const distance = activityDistanceMeters(activity)
+  const duration = activityDurationMs(activity)
+  const avgAqi = activityAverageAqi(activity)
+
+  const lines = [`${ACTIVITY_TYPE_LABELS[activity.type]} · ${formatDistance(distance)} · ${formatDuration(duration)}`]
+
+  if (avgAqi != null) {
+    const level = aqiLevelFromValue(avgAqi)
+    lines.push(`Avg air quality: ${avgAqi} AQI (${aqiLevelLabel[level]})`)
+  }
+
+  lines.push('Tracked with Respira')
+  return lines.join('\n')
+}
+
 function AqiBadge({ aqi }: { aqi: number | null }) {
   if (aqi == null) {
     return (
@@ -390,6 +409,55 @@ function AiCoachInsight({ activity }: { activity: Activity }) {
   )
 }
 
+/** Web Share API when available (mobile browsers, installed PWA — this
+ * is exactly the "installable app" context Respira already supports), a
+ * clipboard-copy fallback everywhere else (most desktop browsers don't
+ * implement navigator.share). Either way this is device-native sharing,
+ * not a bespoke share-card renderer — no server round-trip, no new
+ * backend surface needed. */
+function ShareActivityButton({ activity }: { activity: Activity }) {
+  const [status, setStatus] = useState<'idle' | 'copied' | 'error'>('idle')
+
+  async function handleShare() {
+    const text = buildShareText(activity)
+    const nav = navigator as Navigator & { share?: (data: ShareData) => Promise<void> }
+
+    if (nav.share) {
+      try {
+        await nav.share({ title: 'My Respira activity', text })
+      } catch {
+        // User cancelled the native share sheet, or it failed silently —
+        // either way there's nothing useful to recover into here.
+      }
+      return
+    }
+
+    try {
+      await navigator.clipboard.writeText(text)
+      setStatus('copied')
+    } catch {
+      setStatus('error')
+    }
+    setTimeout(() => setStatus('idle'), 2000)
+  }
+
+  return (
+    <button
+      onClick={handleShare}
+      className="w-full py-2.5 rounded-xl bg-ink-100 dark:bg-night-700 text-ink-900 dark:text-night-100 text-sm font-medium flex items-center justify-center gap-2"
+    >
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <circle cx="18" cy="5" r="3" />
+        <circle cx="6" cy="12" r="3" />
+        <circle cx="18" cy="19" r="3" />
+        <line x1="8.6" y1="10.5" x2="15.4" y2="6.5" />
+        <line x1="8.6" y1="13.5" x2="15.4" y2="17.5" />
+      </svg>
+      {status === 'copied' ? 'Copied to clipboard' : status === 'error' ? 'Could not copy' : 'Share this activity'}
+    </button>
+  )
+}
+
 function ActivitySummary({
   activity,
   onClose,
@@ -468,6 +536,8 @@ function ActivitySummary({
       </div>
 
       <AiCoachInsight activity={activity} />
+
+      <ShareActivityButton activity={activity} />
 
       {onDelete && (
         <button onClick={onDelete} className="text-xs text-aqi-unhealthy underline">
