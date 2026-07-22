@@ -10,7 +10,7 @@ plain-language AI summary.
 
 Currently shipping as a responsive web app (see "Roadmap" below) while a
 native mobile rebuild — the one that can actually do background activity
-tracking, Health/Strava sync, and route-based exposure scoring — is being
+tracking, Health sync, and route-based exposure scoring — is being
 built out separately.
 
 ## Stack
@@ -197,7 +197,7 @@ exposure trackers: a personal exposure score computed from your actual
 route and activity (not just a static location reading), foreground
 activity tracking, cleaner-route suggestions, and — once it moves to a
 real native shell (React Native + Expo) — background tracking and
-Apple Health / Google Health Connect / Strava sync. This web app is the
+Apple Health / Google Health Connect sync. This web app is the
 free-tier-realistic slice of that: no signup, live local air quality,
 and (incrementally) foreground activity tracking, all running in a
 browser tab rather than requiring an app store install or a paid
