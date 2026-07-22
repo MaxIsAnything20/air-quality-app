@@ -1,6 +1,7 @@
 export type ScreenId =
   | 'home'
   | 'activity'
+    | 'outdoorAir'
   | 'myActivities'
   | 'groups'
   | 'indoorAir'
