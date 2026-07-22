@@ -38,7 +38,9 @@ import { HealthProfile, isSensitiveGroup, loadHealthProfile, saveHealthProfile }
 import { detectDivergence, summarizeDivergence } from './services/divergence'
 import { getRecentDailyHistory } from './services/historyLog'
 import { computeExposureScore } from './services/exposureScore'
-import { computeActivityStreak, hasEarnedFirstActivityBadge } from './services/streak'
+import { computeActivityStreak, hasEarnedFirstActivityBadge, hasEarnedEventCheckinBadge } from './services/streak'
+import { fetchMyEvents } from './services/events'
+import type { MyEvent } from './services/events'
 import { RegionSelection } from './types'
 
 const EXPOSURE_SCORE_WINDOW_DAYS = 7
@@ -149,6 +151,36 @@ const firstBadgeEarned = useMemo(
 [activityTracking.history]
 )
 
+// This device's own Events (see services/events.ts, api/events.ts) —
+// fetched once on mount. Powers both the second real badge (checked in
+// to any event) and the Home screen's Events tile. A failed fetch is
+// swallowed silently: the badge/tile just show their "nothing yet"
+// states rather than breaking the rest of the app over a network hiccup.
+const [myEvents, setMyEvents] = useState<MyEvent[]>([])
+useEffect(() => {
+let cancelled = false
+fetchMyEvents()
+.then((events) => {
+if (!cancelled) setMyEvents(events)
+})
+.catch(() => {
+// Silent — see comment above.
+})
+return () => {
+cancelled = true
+}
+}, [])
+
+const eventBadgeEarned = useMemo(() => hasEarnedEventCheckinBadge(myEvents), [myEvents])
+
+const upcomingEvents = useMemo(
+() =>
+myEvents
+.filter((e) => (e.startsAt ?? 0) >= Date.now())
+.sort((a, b) => (a.startsAt ?? 0) - (b.startsAt ?? 0)),
+[myEvents]
+)
+
 const summary = useSummary(
 air.stats.currentAqi,
 air.alert.level,
@@ -194,6 +226,9 @@ locationLabel={air.locationLabel}
 exposureScore={exposureScore}
 streak={activityStreak}
 badgeEarned={firstBadgeEarned}
+eventBadgeEarned={eventBadgeEarned}
+upcomingEventsCount={upcomingEvents.length}
+nextEventName={upcomingEvents[0]?.name ?? null}
 onNavigate={navigateTo}
 onOpenMenu={() => setMenuOpen(true)}
 />
@@ -353,7 +388,12 @@ forecastPeakAqi={air.usingSampleData ? null : air.stats.forecastPeakAqi}
 {screen === 'settings' && <SettingsView onBack={goBack} onNavigate={navigateTo} />}
 
 {screen === 'settingsProfile' && (
-<SettingsProfileView onBack={goBack} streak={activityStreak} badgeEarned={firstBadgeEarned} />
+<SettingsProfileView
+onBack={goBack}
+streak={activityStreak}
+badgeEarned={firstBadgeEarned}
+eventBadgeEarned={eventBadgeEarned}
+/>
 )}
 
 {screen === 'settingsHealthProfile' && (
