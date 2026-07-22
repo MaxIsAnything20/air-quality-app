@@ -21,7 +21,7 @@ export interface StravaStatus {
 
 export async function getStravaStatus(): Promise<StravaStatus> {
     try {
-          const res = await fetch(`/api/strava/status?deviceId=${encodeURIComponent(getDeviceId())}`)
+          const res = await fetch(`/api/strava/connection?deviceId=${encodeURIComponent(getDeviceId())}`)
           if (!res.ok) return { connected: false, athlete: null }
           return await res.json()
     } catch {
@@ -31,11 +31,11 @@ export async function getStravaStatus(): Promise<StravaStatus> {
 
 /** Kicks off the OAuth flow by navigating the whole page to Strava's consent screen. */
 export function connectStrava(): void {
-    window.location.href = `/api/strava/authorize?deviceId=${encodeURIComponent(getDeviceId())}`
+    window.location.href = `/api/strava/oauth?deviceId=${encodeURIComponent(getDeviceId())}`
 }
 
 export async function disconnectStrava(): Promise<void> {
-    await fetch('/api/strava/disconnect', {
+    await fetch('/api/strava/connection', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ deviceId: getDeviceId() })
