@@ -10,10 +10,12 @@ import HistoryView from './components/HistoryView'
 import AlertsView from './components/AlertsView'
 import ProfileView from './components/ProfileView'
 import SummaryCard from './components/SummaryCard'
+import ActivityView from './components/ActivityView'
 import { useTheme } from './hooks/useTheme'
 import { useAirQuality } from './hooks/useAirQuality'
 import { useSummary } from './hooks/useSummary'
 import { useAlertNotifications } from './hooks/useAlertNotifications'
+import { useActivityTracking } from './hooks/useActivityTracking'
 import { AlertSettings, loadAlertSettings, saveAlertSettings } from './services/alertSettings'
 import { HealthProfile, isSensitiveGroup, loadHealthProfile, saveHealthProfile } from './services/profile'
 import { detectDivergence, summarizeDivergence } from './services/divergence'
@@ -22,6 +24,10 @@ import { RegionSelection } from './types'
 export default function App() {
   const { theme, toggleTheme } = useTheme()
   const air = useAirQuality()
+  // Foreground-only web tracking (see hooks/useActivityTracking.ts) — the
+  // AQI readings feed lets each logged GPS point be paired with the
+  // nearest station's value as the activity happens.
+  const activityTracking = useActivityTracking(air.aqiReadings)
   const [activeTab, setActiveTab] = useState<TabId>('map')
   // Read once up front (not a hook — just a plain value) so a first-time
   // alert threshold can be seeded from whatever profile is already saved,
@@ -197,6 +203,15 @@ export default function App() {
               region={selectedRegion?.reading ?? null}
               step={selectedRegion?.step ?? null}
               onClearRegion={() => setSelectedRegion(null)}
+            />
+          </div>
+        )}
+
+        {activeTab === 'activity' && (
+          <div className="flex-1 overflow-y-auto">
+            <ActivityView
+              tracking={activityTracking}
+              currentAqi={air.usingSampleData ? null : air.stats.currentAqi}
             />
           </div>
         )}
