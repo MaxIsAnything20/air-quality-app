@@ -114,6 +114,30 @@ export function aqiLevelFromValue(value: number): AqiLevel {
   return 'hazardous'
 }
 
+/**
+ * Converts an AQI value (0-500) into a 0-100 "cleaner air" score, where
+ * higher is better. This is the flat percentage-style presentation used
+ * on the home screen ("82% Excellent") and shared with the personal
+ * exposure score, rather than exposing the raw EPA AQI scale everywhere.
+ * 0 AQI -> 100, 200 AQI -> 0, linear and clamped in between —
+ * intentionally simple, not a claim of clinical precision.
+ */
+export function aqiToScore(aqi: number): number {
+  return Math.round(Math.max(0, Math.min(100, 100 - aqi / 2)))
+}
+
+/** Plain-language label for an aqiToScore() value, distinct from
+ * AqiLevel's labels (aqiColors.ts's aqiLevelLabel) since this is a
+ * different axis — a 0-100 score, not an AQI category — even though the
+ * boundaries are aligned. */
+export function scoreLabel(score: number): string {
+  if (score >= 80) return 'Excellent'
+  if (score >= 60) return 'Good'
+  if (score >= 40) return 'Fair'
+  if (score >= 20) return 'Poor'
+  return 'Very poor'
+}
+
 export type SmokeDensity = 'light' | 'medium' | 'heavy'
 
 export interface SmokePolygon {
