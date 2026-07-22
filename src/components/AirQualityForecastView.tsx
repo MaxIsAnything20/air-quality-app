@@ -92,6 +92,14 @@ export default function AirQualityForecastView({
     return buildEstimatedHourlySeries(currentAqi, forecastPeakAqi, nowHour)
   }, [currentAqi, forecastPeakAqi, nowHour])
 
+  // TypeScript can't infer from `series` being non-null that the
+  // `currentAqi`/`forecastPeakAqi` props (captured in the closure above)
+  // are non-null too, so the readout below reads its value straight off
+  // the "now" point in the series instead of the raw props — which also
+  // happens to be more correct, since that point's aqi *is* currentAqi
+  // by construction.
+  const nowPoint = series?.find((point) => point.isNow) ?? null
+
   return (
     <div className="flex-1 flex flex-col overflow-y-auto">
       <div className="flex items-center gap-3 px-4 py-3.5 border-b border-ink-200 dark:border-night-600">
@@ -183,17 +191,19 @@ export default function AirQualityForecastView({
               reading.
             </p>
 
-            <div
-              className="rounded-2xl px-4 py-3.5 flex items-center justify-between text-white"
-              style={{ backgroundColor: aqiColor[aqiLevelFromValue(currentAqi)] }}
-            >
-              <span className="text-sm font-medium">
-                {new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
-              </span>
-              <span className="text-sm font-medium">
-                {scoreLabel(aqiToScore(currentAqi))} {aqiToScore(currentAqi)}%
-              </span>
-            </div>
+            {nowPoint && (
+              <div
+                className="rounded-2xl px-4 py-3.5 flex items-center justify-between text-white"
+                style={{ backgroundColor: aqiColor[aqiLevelFromValue(nowPoint.aqi)] }}
+              >
+                <span className="text-sm font-medium">
+                  {new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                </span>
+                <span className="text-sm font-medium">
+                  {scoreLabel(aqiToScore(nowPoint.aqi))} {aqiToScore(nowPoint.aqi)}%
+                </span>
+              </div>
+            )}
           </>
         ) : (
           <p className="text-xs text-ink-400 dark:text-night-400 text-center py-10 m-0">
