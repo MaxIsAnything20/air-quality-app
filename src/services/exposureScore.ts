@@ -1,4 +1,5 @@
 import type { Activity, DailyExposure } from '../types'
+import { aqiToScore, scoreLabel } from '../types'
 import { activityAverageAqi, activityDurationMs } from './activityLog'
 
 export interface ExposureScoreResult {
@@ -59,26 +60,21 @@ export function computeExposureScore(
   // anywhere else in the app.
   const adjustedAqi = sensitiveGroup ? weightedAqi * 1.15 : weightedAqi
 
-  // 0 AQI -> 100, 200 AQI -> 0, linear in between and clamped — simple by
-  // design, not a claim of clinical precision.
-  const score = Math.round(Math.max(0, Math.min(100, 100 - adjustedAqi / 2)))
+  // Shared with the home screen's "Outdoor air %" so the two numbers use
+  // identical math — see types.ts's aqiToScore().
+  const score = aqiToScore(adjustedAqi)
+  const label = scoreLabel(score) as ExposureScoreResult['label']
 
-  let label: ExposureScoreResult['label']
   let detail: string
   if (score >= 80) {
-    label = 'Excellent'
     detail = "You've been breathing clean air recently."
   } else if (score >= 60) {
-    label = 'Good'
     detail = 'Your recent air exposure has been mild.'
   } else if (score >= 40) {
-    label = 'Fair'
     detail = 'Your recent exposure has been moderate — worth keeping an eye on.'
   } else if (score >= 20) {
-    label = 'Poor'
     detail = 'Your recent exposure has been on the high side.'
   } else {
-    label = 'Very poor'
     detail = 'Your recent exposure has been consistently high.'
   }
 
