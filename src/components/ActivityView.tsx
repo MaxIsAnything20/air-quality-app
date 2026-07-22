@@ -13,6 +13,7 @@ import {
   updateActivityType,
 } from '../services/activityLog'
 import { buildActivityFeedback } from '../services/activityFeedback'
+import { fetchActivityInsight } from '../services/activityInsight'
 import type { ActivityTracking } from '../hooks/useActivityTracking'
 
 interface ActivityViewProps {
@@ -343,6 +344,52 @@ function EditActivityForm({
   )
 }
 
+/** Genuine AI-generated ("AirCoach"-style) reflection on this specific
+ * activity, via /api/summary's mode: 'activity' branch (Gemini free
+ * tier). Fetches once per activity id and fails silently into nothing —
+ * the deterministic services/activityFeedback.ts sentence above this is
+ * always shown regardless, so a slow/failed AI call never leaves the
+ * screen without any feedback at all. */
+function AiCoachInsight({ activity }: { activity: Activity }) {
+  const [insight, setInsight] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    setInsight(null)
+    fetchActivityInsight(activity)
+      .then((text) => {
+        if (!cancelled) setInsight(text)
+      })
+      .catch(() => {
+        if (!cancelled) setInsight(null)
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activity.id])
+
+  if (!loading && !insight) return null
+
+  return (
+    <div className="rounded-xl px-3 py-3 border border-[#1F4D3A]/20 dark:border-[#8FC7A6]/20 bg-[#1F4D3A]/5 dark:bg-[#8FC7A6]/5">
+      <p className="text-[11px] font-semibold text-[#1F4D3A] dark:text-[#8FC7A6] uppercase tracking-wide m-0 mb-1">
+        AirCoach
+      </p>
+      {loading ? (
+        <p className="text-sm text-ink-400 dark:text-night-400 m-0">Thinking about your exposure…</p>
+      ) : (
+        <p className="text-sm text-ink-900 dark:text-night-100 m-0">{insight}</p>
+      )}
+    </div>
+  )
+}
+
 function ActivitySummary({
   activity,
   onClose,
@@ -419,6 +466,8 @@ function ActivitySummary({
       <div className="bg-ink-100 dark:bg-night-700 rounded-xl px-3 py-3">
         <p className="text-sm text-ink-900 dark:text-night-100 m-0">{feedback}</p>
       </div>
+
+      <AiCoachInsight activity={activity} />
 
       {onDelete && (
         <button onClick={onDelete} className="text-xs text-aqi-unhealthy underline">
