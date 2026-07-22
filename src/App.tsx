@@ -16,6 +16,7 @@ import GroupsView from './components/GroupsView'
 import IndoorAirView from './components/IndoorAirView'
 import EventsView from './components/EventsView'
 import RoutePlanningView from './components/RoutePlanningView'
+import AirQualityForecastView from './components/AirQualityForecastView'
 import SettingsView from './components/SettingsView'
 import SettingsProfileView from './components/SettingsProfileView'
 import SettingsHealthProfileView from './components/SettingsHealthProfileView'
@@ -329,6 +330,15 @@ export default function App() {
             onBack={goBack}
             onUpgrade={() => navigateTo('paywall')}
             aqiReadings={air.aqiReadings}
+          />
+        )}
+
+        {screen === 'forecast' && (
+          <AirQualityForecastView
+            onBack={goBack}
+            onUpgrade={() => navigateTo('paywall')}
+            currentAqi={air.usingSampleData ? null : air.stats.currentAqi}
+            forecastPeakAqi={air.usingSampleData ? null : air.stats.forecastPeakAqi}
           />
         )}
 
