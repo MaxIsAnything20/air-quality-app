@@ -6,6 +6,7 @@ export type ScreenId =
   | 'groups'
   | 'indoorAir'
   | 'events'
+  | 'routePlanning'
   | 'settings'
   | 'settingsProfile'
   | 'settingsHealthProfile'
