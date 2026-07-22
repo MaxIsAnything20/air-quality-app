@@ -62,25 +62,17 @@ function apiKeyProxyPlugin(env: Record<string, string>): Plugin {
         }
       })
 
-      // Dev-server equivalent of api/routes.ts — see that file for why the
-      // key stays server-side and what the client falls back to when it's
-      // unset (a clearly-labeled sample route, not a silent failure).
+      // Dev-server equivalent of api/routes.ts — see that file for the full
+      // reasoning. No API key is needed at all now that routing goes
+      // through OSRM's free, open-source public demo server
+      // (router.project-osrm.org, sponsored by FOSSGIS).
       server.middlewares.use('/api/routes', async (req, res) => {
-        const key = env.OPENROUTESERVICE_API_KEY
-        if (!key) {
-          res.statusCode = 501
-          res.setHeader('content-type', 'application/json')
-          res.end(
-            JSON.stringify({
-              error: 'Set OPENROUTESERVICE_API_KEY in .env (no VITE_ prefix) to enable real route planning in dev.'
-            })
-          )
-          return
-        }
         const incoming = new URL(req.url ?? '', 'http://localhost')
-        const profile = incoming.searchParams.get('profile') || 'foot-walking'
+        const requestedProfile = incoming.searchParams.get('profile') || 'foot-walking'
+        const profile = requestedProfile === 'cycling-regular' ? 'cycling' : 'walking'
         const start = incoming.searchParams.get('start')
         const end = incoming.searchParams.get('end')
+        const wantAlternatives = incoming.searchParams.get('alternatives') === 'true'
         if (!start || !end) {
           res.statusCode = 400
           res.setHeader('content-type', 'application/json')
@@ -88,16 +80,32 @@ function apiKeyProxyPlugin(env: Record<string, string>): Plugin {
           return
         }
         try {
+          const params = new URLSearchParams({ overview: 'full', geometries: 'geojson' })
+          if (wantAlternatives) params.set('alternatives', 'true')
           const upstream = await fetch(
-            `https://api.openrouteservice.org/v2/directions/${encodeURIComponent(profile)}` +
-              `?api_key=${key}&start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`
+            `https://router.project-osrm.org/route/v1/${profile}/${start};${end}?${params}`
           )
-          res.statusCode = upstream.status
-          res.setHeader('content-type', upstream.headers.get('content-type') ?? 'application/json')
-          res.end(await upstream.text())
+          // See api/routes.ts for why this deliberately reads the JSON body
+          // before checking upstream.ok — OSRM sends "no route" responses
+          // (code !== 'Ok') with a 400 status, and that real message would
+          // otherwise get swallowed and misreported as a connectivity error.
+          const data = await upstream.json().catch(() => null)
+          if (!data) {
+            res.statusCode = 502
+            res.end(JSON.stringify({ error: 'Could not reach the routing service.' }))
+            return
+          }
+          if (data.code !== 'Ok') {
+            res.statusCode = 400
+            res.setHeader('content-type', 'application/json')
+            res.end(JSON.stringify({ error: data.message ?? 'No route exists between these two points.' }))
+            return
+          }
+          res.setHeader('content-type', 'application/json')
+          res.end(JSON.stringify(data))
         } catch {
           res.statusCode = 502
-          res.end(JSON.stringify({ error: 'Could not reach OpenRouteService.' }))
+          res.end(JSON.stringify({ error: 'Could not reach the routing service.' }))
         }
       })
 
