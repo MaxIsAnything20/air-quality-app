@@ -337,6 +337,8 @@ export default function App() {
           <AirQualityForecastView
             onBack={goBack}
             onUpgrade={() => navigateTo('paywall')}
+            onViewMap={() => navigateTo('outdoorAir')}
+            pollutants={air.usingSampleData ? [] : (air.aqiReadings[0]?.pollutants ?? [])}
             currentAqi={air.usingSampleData ? null : air.stats.currentAqi}
             forecastPeakAqi={air.usingSampleData ? null : air.stats.forecastPeakAqi}
           />
