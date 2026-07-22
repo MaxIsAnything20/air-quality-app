@@ -8,6 +8,15 @@ const ROUTE_PLAN_COUNT_KEY = 'respira.routePlanCount.v1'
 
 export const FREE_ROUTE_PLAN_LIMIT = 3
 
+// Temporary: route planning is unlimited while the paywall isn't wired up
+// to real billing yet, per an explicit ask to lift the cap for now. The
+// counter below keeps counting in the background either way (so history
+// isn't lost), but hasFreeRoutePlansRemaining() ignores it while this is
+// true. Flip this back to false to restore the 3-free-plan limit —
+// nothing else needs to change, since every caller (useRoutePlanning,
+// RoutePlanningView's notice copy) reads through this single flag.
+export const UNLIMITED_ROUTE_PLANS = true
+
 export function getRoutePlanCount(): number {
   try {
     const raw = localStorage.getItem(ROUTE_PLAN_COUNT_KEY)
@@ -31,5 +40,6 @@ export function incrementRoutePlanCount(): number {
 }
 
 export function hasFreeRoutePlansRemaining(): boolean {
+  if (UNLIMITED_ROUTE_PLANS) return true
   return getRoutePlanCount() < FREE_ROUTE_PLAN_LIMIT
 }
