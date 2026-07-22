@@ -17,6 +17,15 @@ import IndoorAirView from './components/IndoorAirView'
 import PollenView from './components/PollenView'
 import EventsView from './components/EventsView'
 import SettingsView from './components/SettingsView'
+import SettingsProfileView from './components/SettingsProfileView'
+import SettingsHealthProfileView from './components/SettingsHealthProfileView'
+import SettingsAutoTrackView from './components/SettingsAutoTrackView'
+import SettingsSensorsView from './components/SettingsSensorsView'
+import SettingsLocationsView from './components/SettingsLocationsView'
+import SettingsConnectionsView from './components/SettingsConnectionsView'
+import SettingsNotificationsView from './components/SettingsNotificationsView'
+import SettingsCommunicationView from './components/SettingsCommunicationView'
+import SettingsPollenPrefsView from './components/SettingsPollenPrefsView'
 import PaywallView from './components/PaywallView'
 import { useTheme } from './hooks/useTheme'
 import { useAirQuality } from './hooks/useAirQuality'
@@ -292,25 +301,48 @@ export default function App() {
         {screen === 'groups' && <GroupsView onBack={goBack} />}
 
         {screen === 'indoorAir' && (
-                <IndoorAirView onBack={goBack} outdoorAqi={air.usingSampleData ? null : air.stats.currentAqi} />
-              )}
+          <IndoorAirView
+            onBack={goBack}
+            outdoorAqi={air.usingSampleData ? null : air.stats.currentAqi}
+            onManageSensors={() => navigateTo('settingsSensors')}
+          />
+        )}
 
         {screen === 'pollen' && <PollenView onBack={goBack} onUpgrade={() => navigateTo('paywall')} />}
 
         {screen === 'events' && <EventsView onBack={goBack} />}
 
-        {screen === 'settings' && (
-          <SettingsView
+        {screen === 'settings' && <SettingsView onBack={goBack} onNavigate={navigateTo} />}
+
+        {screen === 'settingsProfile' && <SettingsProfileView onBack={goBack} />}
+
+        {screen === 'settingsHealthProfile' && (
+          <SettingsHealthProfileView onBack={goBack} profile={healthProfile} onProfileChange={handleProfileChange} />
+        )}
+
+        {screen === 'settingsAutoTrack' && (
+          <SettingsAutoTrackView onBack={goBack} onUpgrade={() => navigateTo('paywall')} />
+        )}
+
+        {screen === 'settingsSensors' && <SettingsSensorsView onBack={goBack} />}
+
+        {screen === 'settingsLocations' && <SettingsLocationsView onBack={goBack} />}
+
+        {screen === 'settingsConnections' && <SettingsConnectionsView onBack={goBack} />}
+
+        {screen === 'settingsNotifications' && (
+          <SettingsNotificationsView
             onBack={goBack}
-            onUpgrade={() => navigateTo('paywall')}
-            profile={healthProfile}
-            onProfileChange={handleProfileChange}
             alertSettings={alertSettings}
             onAlertSettingsChange={handleAlertSettingsChange}
             sensitiveProfile={isSensitiveGroup(healthProfile)}
             center={air.center}
           />
         )}
+
+        {screen === 'settingsCommunication' && <SettingsCommunicationView onBack={goBack} />}
+
+        {screen === 'settingsPollenPrefs' && <SettingsPollenPrefsView onBack={goBack} />}
 
         {screen === 'paywall' && <PaywallView onBack={goBack} />}
 
