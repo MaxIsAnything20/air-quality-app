@@ -291,7 +291,9 @@ export default function App() {
 
         {screen === 'groups' && <GroupsView onBack={goBack} />}
 
-        {screen === 'indoorAir' && <IndoorAirView onBack={goBack} />}
+        {screen === 'indoorAir' && (
+                <IndoorAirView onBack={goBack} outdoorAqi={air.usingSampleData ? null : air.stats.currentAqi} />
+              )}
 
         {screen === 'pollen' && <PollenView onBack={goBack} onUpgrade={() => navigateTo('paywall')} />}
 
