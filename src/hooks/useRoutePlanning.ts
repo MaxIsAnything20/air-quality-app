@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
 import type { AqiReading } from '../types'
-import { ApiNotConfiguredError } from '../services/apiError'
+import { ApiNotConfiguredError, RouteNotPossibleError } from '../services/apiError'
 import { fetchRoute, RouteProfile, RouteResult } from '../services/routes'
 import {
   FREE_ROUTE_PLAN_LIMIT,
@@ -44,6 +44,18 @@ export interface RoutePlan {
 const AVERAGE_WALK_SPEED_MPS = 1.4 // ~5 km/h
 const AVERAGE_CYCLE_SPEED_MPS = 4.2 // ~15 km/h
 
+// A straight-line sanity ceiling per activity — not a claim about an exact
+// physical limit, just a practical "is this even a single-trip distance"
+// gate so a request between, say, New York and Los Angeles doesn't
+// silently come back as a 300-hour walking "route." Checked before ever
+// calling the routing API, so it applies the same whether or not
+// OPENROUTESERVICE_API_KEY is configured server-side.
+const MAX_REALISTIC_DISTANCE_METERS: Record<RouteProfile, number> = {
+  'foot-walking': 50_000, // ~31 mi — beyond a realistic single walk
+  'cycling-regular': 250_000 // ~155 mi — beyond a realistic single ride
+}
+const METERS_PER_MILE = 1609.34
+
 // A clearly-labeled placeholder route (straight line between the two real
 // points, with an honest estimated duration from a commonly-used average
 // pace) shown only when OPENROUTESERVICE_API_KEY isn't set server-side —
@@ -86,15 +98,21 @@ function getCurrentPosition(): Promise<LatLng> {
  * mirroring how a real navigation app separates "where from" and "where
  * to" — rather than silently assuming the current GPS fix is always the
  * start. Start can be set two ways: a real device geolocation fix (see
- * useCurrentLocationAsOrigin) or a real Nominatim place search (same
- * search used for the destination). Nothing is planned until both ends
- * are set and the person explicitly asks for routes.
+ * useCurrentLocationAsOrigin) or a real place search (same search used
+ * for the destination). Nothing is planned until both ends are set and
+ * the person explicitly asks for routes.
  *
- * Once both ends are set, planRoute requests a real route from
+ * Once both ends are set, planRoute first runs a cheap straight-line
+ * feasibility check (MAX_REALISTIC_DISTANCE_METERS) before ever calling
+ * the routing API — catching "that's not a realistic single trip"
+ * requests immediately. It then requests a real route from
  * OpenRouteService (see services/routes.ts), falling back to a
  * clearly-labeled sample straight-line route when
  * OPENROUTESERVICE_API_KEY isn't configured — never silently pretending a
- * placeholder is a real route. AQI figures (average, per-segment, worst
+ * placeholder is a real route. If OpenRouteService itself reports the two
+ * points genuinely aren't connected by any road/trail, that's surfaced as
+ * the same 'infeasible' status as the distance check, distinct from a
+ * generic technical error. AQI figures (average, per-segment, worst
  * stretch — see services/routeAir.ts) are always real, pulled from
  * whatever aqiReadings the caller passes in, and only computed for real
  * route geometry.
@@ -106,9 +124,10 @@ export function useRoutePlanning(aqiReadings: AqiReading[]) {
 
   const [destination, setDestination] = useState<(LatLng & { label: string }) | null>(null)
 
-  const [status, setStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle')
+  const [status, setStatus] = useState<'idle' | 'loading' | 'ready' | 'error' | 'infeasible'>('idle')
   const [plan, setPlan] = useState<RoutePlan | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [infeasibleReason, setInfeasibleReason] = useState<string | null>(null)
   const [planCount, setPlanCount] = useState(() => getRoutePlanCount())
 
   const useCurrentLocationAsOrigin = useCallback(async () => {
@@ -147,15 +166,29 @@ export function useRoutePlanning(aqiReadings: AqiReading[]) {
     async (profile: RouteProfile) => {
       if (!origin || !destination) return
 
+      setErrorMessage(null)
+      setInfeasibleReason(null)
+
       if (!hasFreeRoutePlansRemaining()) {
         setErrorMessage(`You've used all ${FREE_ROUTE_PLAN_LIMIT} free route plans on this device.`)
         setStatus('error')
         return
       }
 
-      setErrorMessage(null)
       setPlan(null)
       setStatus('loading')
+
+      const straightLineMeters = distanceMeters(origin, destination)
+      const maxMeters = MAX_REALISTIC_DISTANCE_METERS[profile]
+      if (straightLineMeters > maxMeters) {
+        const miles = Math.round(straightLineMeters / METERS_PER_MILE)
+        const activityLabel = profile === 'cycling-regular' ? 'a single bike ride' : 'a single walk'
+        setInfeasibleReason(
+          `These two points are about ${miles} mi apart in a straight line — too far for ${activityLabel}. Try picking closer points, or switch activity.`
+        )
+        setStatus('infeasible')
+        return
+      }
 
       let route: RouteResult
       let usingSampleData = false
@@ -165,6 +198,10 @@ export function useRoutePlanning(aqiReadings: AqiReading[]) {
         if (err instanceof ApiNotConfiguredError) {
           route = buildSampleRoute(origin, destination, profile)
           usingSampleData = true
+        } else if (err instanceof RouteNotPossibleError) {
+          setInfeasibleReason(err.message)
+          setStatus('infeasible')
+          return
         } else {
           setErrorMessage(err instanceof Error ? err.message : 'Could not plan a route.')
           setStatus('error')
@@ -188,6 +225,7 @@ export function useRoutePlanning(aqiReadings: AqiReading[]) {
   const reset = useCallback(() => {
     setPlan(null)
     setErrorMessage(null)
+    setInfeasibleReason(null)
     setStatus('idle')
     setOrigin(null)
     setOriginLabel(null)
@@ -207,6 +245,7 @@ export function useRoutePlanning(aqiReadings: AqiReading[]) {
     status,
     plan,
     errorMessage,
+    infeasibleReason,
     planCount,
     freeLimitReached: planCount >= FREE_ROUTE_PLAN_LIMIT,
     canPlan: origin != null && destination != null,
