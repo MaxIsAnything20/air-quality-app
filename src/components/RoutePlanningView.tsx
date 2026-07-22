@@ -8,7 +8,7 @@ import SearchBar from './SearchBar'
 import type { PlaceResult } from '../services/geocode'
 import { useRoutePlanning } from '../hooks/useRoutePlanning'
 import type { RouteProfile } from '../services/routes'
-import { FREE_ROUTE_PLAN_LIMIT } from '../services/routePlans'
+import { FREE_ROUTE_PLAN_LIMIT, UNLIMITED_ROUTE_PLANS } from '../services/routePlans'
 
 interface RoutePlanningViewProps {
   onBack: () => void
@@ -51,8 +51,20 @@ function AqiPill({ aqi }: { aqi: number | null }) {
  * never a surprise buried in an error message. Once free plans run out,
  * this becomes the primary call-to-action for upgrading rather than a
  * secondary link inside an error card.
+ *
+ * While UNLIMITED_ROUTE_PLANS is on (services/routePlans.ts), this shows
+ * honest "unlimited, temporary" copy instead of a fake declining count —
+ * never claiming a limit is being enforced when it isn't.
  */
 function RemainingPlansNotice({ planCount, onUpgrade }: { planCount: number; onUpgrade: () => void }) {
+  if (UNLIMITED_ROUTE_PLANS) {
+    return (
+      <p className="text-[11px] text-ink-400 dark:text-night-400 text-center mb-4 m-0">
+        Unlimited route plans (temporary)
+      </p>
+    )
+  }
+
   const remaining = Math.max(0, FREE_ROUTE_PLAN_LIMIT - planCount)
 
   if (remaining === 0) {
