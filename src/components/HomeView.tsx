@@ -302,9 +302,6 @@ export default function HomeView({
             <p className="text-sm font-medium text-ink-900 dark:text-night-100 m-0">Connections</p>
             <div className="flex gap-1 mt-2">
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-ink-200 dark:bg-night-600 text-ink-600 dark:text-night-200">
-                Strava
-              </span>
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-ink-200 dark:bg-night-600 text-ink-600 dark:text-night-200">
                 Health
               </span>
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-ink-200 dark:bg-night-600 text-ink-600 dark:text-night-200">
@@ -312,7 +309,7 @@ export default function HomeView({
               </span>
             </div>
             <p className="text-[11px] text-ink-400 dark:text-night-400 m-0 mt-2">
-              Connect Strava, Health & Garmin
+              Connect Health & Garmin
             </p>
           </button>
         </div>
