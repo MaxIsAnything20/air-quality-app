@@ -1,25 +1,37 @@
-// Mirrors api/airnow.ts's proxy pattern exactly: the OpenRouteService key
-// lives only in this process's environment (OPENROUTESERVICE_API_KEY, set
-// in your hosting provider's dashboard — NOT prefixed with VITE_) and is
-// never sent to or readable by the browser. The client only ever talks to
-// this endpoint, never api.openrouteservice.org directly.
+// Free, open-source turn-by-turn directions via the OSRM public demo
+// server (router.project-osrm.org), sponsored by FOSSGIS — no signup, no
+// API key, no billing account of any kind required. This replaced an
+// earlier OpenRouteService-based proxy (which needed
+// OPENROUTESERVICE_API_KEY set in the hosting provider's dashboard)
+// specifically because OSRM's demo server needs none, removing a signup
+// step entirely.
 //
-// Until OPENROUTESERVICE_API_KEY is set, this returns 501 and the client
-// (see src/hooks/useRoutePlanning.ts) falls back to a clearly-labeled
-// sample straight-line route instead of pretending to have real
-// turn-by-turn directions.
-export default async function handler(req: any, res: any) {
-  const apiKey = process.env.OPENROUTESERVICE_API_KEY
-  if (!apiKey) {
-    res.status(501).json({
-      error:
-        "OPENROUTESERVICE_API_KEY is not set on the server. Add it in your hosting provider's environment variables to enable real route planning."
-    })
-    return
-  }
+// Trade-off, spelled out in OSRM's own usage policy
+// (https://github.com/Project-OSRM/osrm-backend/wiki/Api-usage-policy):
+// it's for "reasonable, non-commercial use" only, informally capped
+// around 1 request/second — comfortably enough for a personal project's
+// traffic, but not something to point a high-volume commercial product
+// at. If this app ever needs that scale, self-hosting OSRM (it's open
+// source) or a paid provider would be the next step — not needed now.
+//
+// The client only ever talks to this endpoint, never
+// router.project-osrm.org directly — same "proxy hides the upstream"
+// pattern as api/airnow.ts, kept even though there's no secret to hide
+// here, so switching backends again later stays a one-file change.
+const OSRM_BASE_URL = 'https://router.project-osrm.org/route/v1'
 
+// Respira's own profile names (unchanged from the earlier ORS-based
+// version, so nothing else in the app needed to change — see
+// src/services/routes.ts) map onto OSRM's own profile path segments.
+const OSRM_PROFILE: Record<string, string> = {
+  'foot-walking': 'walking',
+  'cycling-regular': 'cycling'
+}
+
+export default async function handler(req: any, res: any) {
   const incoming = new URL(req.url ?? '', 'http://localhost')
-  const profile = incoming.searchParams.get('profile') || 'foot-walking'
+  const requestedProfile = incoming.searchParams.get('profile') || 'foot-walking'
+  const profile = OSRM_PROFILE[requestedProfile] ?? 'walking'
   const start = incoming.searchParams.get('start')
   const end = incoming.searchParams.get('end')
   const wantAlternatives = incoming.searchParams.get('alternatives') === 'true'
@@ -30,51 +42,42 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    if (wantAlternatives) {
-      // Alternative routes require ORS's POST directions endpoint — the
-      // simple GET form used below only ever returns one route.
-      // target_count/weight_factor/share_factor are ORS's own tuning
-      // knobs for "how different must an alternative be to count" (kept
-      // at their commonly-recommended values); ORS only computes
-      // alternatives for reasonably short point-to-point routes, and
-      // silently returns just the one primary route otherwise rather
-      // than erroring — src/services/routes.ts already handles getting
-      // back fewer routes than requested.
-      const [startLng, startLat] = start.split(',').map(Number)
-      const [endLng, endLat] = end.split(',').map(Number)
-      const upstream = await fetch(
-        `https://api.openrouteservice.org/v2/directions/${encodeURIComponent(profile)}/geojson`,
-        {
-          method: 'POST',
-          headers: {
-            Authorization: apiKey,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            coordinates: [
-              [startLng, startLat],
-              [endLng, endLat]
-            ],
-            alternative_routes: { target_count: 3, weight_factor: 1.4, share_factor: 0.6 }
-          })
-        }
-      )
-      const body = await upstream.text()
-      res.status(upstream.status)
-      res.setHeader('content-type', upstream.headers.get('content-type') ?? 'application/json')
-      res.send(body)
+    // OSRM takes coordinates as "lng,lat;lng,lat" directly in the path —
+    // start/end already arrive in that "lng,lat" shape from
+    // src/services/routes.ts, so they're passed straight through.
+    const params = new URLSearchParams({ overview: 'full', geometries: 'geojson' })
+    if (wantAlternatives) params.set('alternatives', 'true')
+
+    const upstream = await fetch(`${OSRM_BASE_URL}/${profile}/${start};${end}?${params}`)
+
+    // Deliberately NOT gating on upstream.ok before reading the body:
+    // OSRM returns a real JSON payload — {code, message} — on BOTH
+    // success (code: 'Ok') AND known failure cases like "no route
+    // exists between these points" (code: 'NoRoute'/'NoSegment'), and
+    // it sends the latter with a 400 HTTP status, not 200. Checking
+    // upstream.ok first would swallow that real "no route" message and
+    // misreport it as a generic connectivity failure instead — verified
+    // by hand against the live demo server before shipping this.
+    const data = await upstream.json().catch(() => null)
+
+    if (!data) {
+      res.status(502).json({ error: 'Could not reach the routing service.' })
       return
     }
 
-    const upstream = await fetch(
-      `https://api.openrouteservice.org/v2/directions/${encodeURIComponent(profile)}` +
-        `?api_key=${apiKey}&start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`
-    )
-    const body = await upstream.text()
-    res.status(upstream.status)
-    res.setHeader('content-type', upstream.headers.get('content-type') ?? 'application/json')
-    res.send(body)
+    if (data.code !== 'Ok') {
+      // Covers both NoRoute (points aren't connected by any road/trail
+      // this profile can use) and NoSegment (a point is too far from
+      // any road for OSRM to snap it) — see
+      // https://project-osrm.org/docs/v5.24.0/api/#responses. Turned
+      // into a 400 the client's isNoRouteMessage() already knows how to
+      // detect and show as a friendly "route not possible" message.
+      res.status(400).json({ error: data.message ?? 'No route exists between these two points.' })
+      return
+    }
+
+    res.status(200).json(data)
   } catch {
-    res.status(502).json({ error: 'Could not reach OpenRouteService.' })
+    res.status(502).json({ error: 'Could not reach the routing service.' })
   }
 }
