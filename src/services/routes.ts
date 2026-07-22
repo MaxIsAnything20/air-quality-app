@@ -30,23 +30,30 @@ function isNoRouteMessage(message: unknown): boolean {
   return typeof message === 'string' && NO_ROUTE_KEYWORDS.some((keyword) => message.toLowerCase().includes(keyword))
 }
 
-// ⚠️ Parses OpenRouteService's real GeoJSON directions response shape
-// (features[0].geometry.coordinates as [lng,lat][], features[0].properties
-// .summary.{distance,duration}) per ORS's published API docs — written
-// without a live key to test against, since none was available at the
-// time this was built. If OPENROUTESERVICE_API_KEY is set and this
-// throws or returns nothing usable, that response shape is the first
-// thing to double-check against https://openrouteservice.org/dev/#/api-docs.
-export async function fetchRoute(
+function parseFeature(feature: any): RouteResult {
+  const coordinates: [number, number][] = feature.geometry.coordinates.map(
+    ([lng, lat]: [number, number]) => [lat, lng]
+  )
+  const summary = feature.properties?.summary ?? { distance: 0, duration: 0 }
+  return {
+    coordinates,
+    distanceMeters: summary.distance ?? 0,
+    durationSeconds: summary.duration ?? 0
+  }
+}
+
+async function requestDirections(
   start: { lat: number; lng: number },
   end: { lat: number; lng: number },
-  profile: RouteProfile = 'foot-walking'
-): Promise<RouteResult> {
+  profile: RouteProfile,
+  alternatives: boolean
+) {
   const params = new URLSearchParams({
     profile,
     start: `${start.lng},${start.lat}`,
     end: `${end.lng},${end.lat}`
   })
+  if (alternatives) params.set('alternatives', 'true')
 
   const res = await fetch(`${BASE_URL}?${params}`)
 
@@ -66,19 +73,41 @@ export async function fetchRoute(
   }
 
   const data = await res.json()
-  const feature = data?.features?.[0]
-  if (!feature?.geometry?.coordinates?.length) {
+  const features = data?.features ?? []
+  if (!features.length) {
     throw new RouteNotPossibleError('No route exists between these two points for this activity.')
   }
+  return features
+}
 
-  const coordinates: [number, number][] = feature.geometry.coordinates.map(
-    ([lng, lat]: [number, number]) => [lat, lng]
-  )
-  const summary = feature.properties?.summary ?? { distance: 0, duration: 0 }
+// ⚠️ Parses OpenRouteService's real GeoJSON directions response shape
+// (features[0].geometry.coordinates as [lng,lat][], features[0].properties
+// .summary.{distance,duration}) per ORS's published API docs — written
+// without a live key to test against, since none was available at the
+// time this was built. If OPENROUTESERVICE_API_KEY is set and this
+// throws or returns nothing usable, that response shape is the first
+// thing to double-check against https://openrouteservice.org/dev/#/api-docs.
+export async function fetchRoute(
+  start: { lat: number; lng: number },
+  end: { lat: number; lng: number },
+  profile: RouteProfile = 'foot-walking'
+): Promise<RouteResult> {
+  const features = await requestDirections(start, end, profile, false)
+  return parseFeature(features[0])
+}
 
-  return {
-    coordinates,
-    distanceMeters: summary.distance ?? 0,
-    durationSeconds: summary.duration ?? 0
-  }
+/** Same as fetchRoute, but asks OpenRouteService for up to 3 alternative
+ * paths (see api/routes.ts) instead of just the single best one — this is
+ * what backs the "cleanest / shortest / balanced" route comparison in
+ * RoutePlanningView.tsx. ORS doesn't guarantee 3 back; short or
+ * heavily-constrained trips often only get 1 or 2, and this simply
+ * returns however many it provides rather than padding the list with
+ * duplicates. */
+export async function fetchRoutes(
+  start: { lat: number; lng: number },
+  end: { lat: number; lng: number },
+  profile: RouteProfile = 'foot-walking'
+): Promise<RouteResult[]> {
+  const features = await requestDirections(start, end, profile, true)
+  return features.map(parseFeature)
 }
