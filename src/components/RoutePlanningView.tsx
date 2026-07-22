@@ -96,7 +96,11 @@ export default function RoutePlanningView({ onBack, onUpgrade, aqiReadings }: Ro
           </button>
         </div>
 
-        <div className="rounded-lg border border-ink-200 dark:border-night-600 mb-4 overflow-hidden">
+        {/* No overflow-hidden here (unlike most bg-ink-100 cards in this
+            app) — SearchBar's suggestion dropdown is absolutely positioned
+            and would get clipped by any ancestor with overflow-hidden
+            between it and this container. */}
+        <div className="rounded-lg border border-ink-200 dark:border-night-600 mb-4">
           <SearchBar onSelectLocation={handleSelectDestination} activeLabel={destinationLabel} onClear={reset} />
         </div>
 
