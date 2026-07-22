@@ -18,6 +18,7 @@ interface RoutePlanningViewProps {
 
 function formatDistance(meters: number): string {
   const km = meters / 1000
+  if (km < 0.1) return `${Math.round(meters)} m`
   return `${km.toFixed(km < 10 ? 2 : 1)} km`
 }
 
@@ -45,23 +46,90 @@ function AqiPill({ aqi }: { aqi: number | null }) {
 }
 
 /**
- * Real destination search (Nominatim, via SearchBar — no key needed) and
- * real device geolocation feed a route request to OpenRouteService (see
- * services/routes.ts). Until OPENROUTESERVICE_API_KEY is set server-side,
- * useRoutePlanning falls back to a clearly-labeled sample straight-line
- * route instead — this screen always shows that as a banner + dashed line,
- * never blending it in as if it were real turn-by-turn directions.
+ * A senior-engineer-style, honest usage counter — shown before the user
+ * even searches (not just after they hit the wall), so the limit is
+ * never a surprise buried in an error message. Once free plans run out,
+ * this becomes the primary call-to-action for upgrading rather than a
+ * secondary link inside an error card.
+ */
+function RemainingPlansNotice({ planCount, onUpgrade }: { planCount: number; onUpgrade: () => void }) {
+  const remaining = Math.max(0, FREE_ROUTE_PLAN_LIMIT - planCount)
+
+  if (remaining === 0) {
+    return (
+      <div className="bg-aqi-unhealthy/10 border border-aqi-unhealthy/30 rounded-xl px-3.5 py-2.5 mb-4 flex items-center justify-between gap-3">
+        <p className="text-xs text-ink-900 dark:text-night-100 m-0">
+          No free route plans remaining on this device.
+        </p>
+        <button
+          onClick={onUpgrade}
+          className="text-xs font-semibold text-[#1F4D3A] dark:text-[#8FC7A6] underline shrink-0"
+        >
+          Upgrade
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <p className="text-[11px] text-ink-400 dark:text-night-400 text-center mb-4 m-0">
+      {remaining} free route plan{remaining === 1 ? '' : 's'} remaining
+    </p>
+  )
+}
+
+/**
+ * Real destination search (Nominatim, via SearchBar — no key needed) for
+ * both Start and End, real device geolocation as a one-tap alternative
+ * for Start, feeding a route request to OpenRouteService (see
+ * services/routes.ts). Until OPENROUTESERVICE_API_KEY is set
+ * server-side, useRoutePlanning falls back to a clearly-labeled sample
+ * straight-line route instead — this screen always shows that as a
+ * banner + dashed line, never blending it in as if it were real
+ * turn-by-turn directions.
+ *
+ * For real routes, the line itself is colored segment-by-segment using
+ * the nearest real AQI reading at each point along the path (see
+ * services/routeAir.ts) — a spatial picture of where air quality
+ * actually changes on THIS route, rather than a single trip-wide average
+ * number.
  */
 export default function RoutePlanningView({ onBack, onUpgrade, aqiReadings }: RoutePlanningViewProps) {
-  const { status, origin, destinationLabel, plan, errorMessage, planCount, freeLimitReached, planRouteTo, reset } =
-    useRoutePlanning(aqiReadings)
+  const {
+    origin,
+    originLabel,
+    locatingOrigin,
+    useCurrentLocationAsOrigin,
+    setOriginPlace,
+    clearOrigin,
+    destination,
+    setDestinationPlace,
+    clearDestination,
+    status,
+    plan,
+    errorMessage,
+    planCount,
+    freeLimitReached,
+    canPlan,
+    planRoute,
+    reset
+  } = useRoutePlanning(aqiReadings)
   const [profile, setProfile] = useState<RouteProfile>('foot-walking')
 
-  const busy = status === 'locating' || status === 'loading'
+  const busy = locatingOrigin || status === 'loading'
+
+  function handleSelectOrigin(result: PlaceResult) {
+    setOriginPlace({ lat: result.lat, lng: result.lng, label: result.label })
+  }
 
   function handleSelectDestination(result: PlaceResult) {
-    planRouteTo({ lat: result.lat, lng: result.lng, label: result.label }, profile)
+    setDestinationPlace({ lat: result.lat, lng: result.lng, label: result.label })
   }
+
+  const levelsOnRoute =
+    plan?.routeSegments && plan.routeSegments.length > 0
+      ? Array.from(new Set(plan.routeSegments.map((segment) => segment.level)))
+      : []
 
   return (
     <div className="flex-1 flex flex-col overflow-y-auto">
@@ -69,11 +137,36 @@ export default function RoutePlanningView({ onBack, onUpgrade, aqiReadings }: Ro
 
       <div className="px-4 pt-4 pb-6">
         <p className="text-xs text-ink-600 dark:text-night-200 mb-4">
-          Search a destination to see the air quality along the way, based on your current location and the
-          nearest real AQI readings.
+          Pick a start and end point to see the air quality along the way, based on the nearest real AQI
+          readings.
         </p>
 
-        <div className="flex gap-2 mb-3">
+        <p className="text-xs font-medium text-ink-900 dark:text-night-100 mb-1.5">Start</p>
+        <div className="rounded-lg border border-ink-200 dark:border-night-600 mb-1.5">
+          <SearchBar onSelectLocation={handleSelectOrigin} activeLabel={originLabel} onClear={clearOrigin} />
+        </div>
+        <button
+          onClick={useCurrentLocationAsOrigin}
+          disabled={locatingOrigin}
+          className="text-xs font-medium text-[#1F4D3A] dark:text-[#8FC7A6] flex items-center gap-1 mb-4 disabled:opacity-60"
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2 4 21l8-4.5L20 21Z" />
+          </svg>
+          {locatingOrigin ? 'Getting your location…' : 'Use current location'}
+        </button>
+
+        <p className="text-xs font-medium text-ink-900 dark:text-night-100 mb-1.5">End</p>
+        <div className="rounded-lg border border-ink-200 dark:border-night-600 mb-4">
+          <SearchBar
+            onSelectLocation={handleSelectDestination}
+            activeLabel={destination?.label ?? null}
+            onClear={clearDestination}
+          />
+        </div>
+
+        <p className="text-xs font-medium text-ink-900 dark:text-night-100 mb-1.5">Activity</p>
+        <div className="flex gap-2 mb-4">
           <button
             onClick={() => setProfile('foot-walking')}
             className={`flex-1 py-2 rounded-xl text-sm font-medium ${
@@ -96,19 +189,19 @@ export default function RoutePlanningView({ onBack, onUpgrade, aqiReadings }: Ro
           </button>
         </div>
 
-        {/* No overflow-hidden here (unlike most bg-ink-100 cards in this
-            app) — SearchBar's suggestion dropdown is absolutely positioned
-            and would get clipped by any ancestor with overflow-hidden
-            between it and this container. */}
-        <div className="rounded-lg border border-ink-200 dark:border-night-600 mb-4">
-          <SearchBar onSelectLocation={handleSelectDestination} activeLabel={destinationLabel} onClear={reset} />
-        </div>
+        <button
+          onClick={() => planRoute(profile)}
+          disabled={!canPlan || busy || freeLimitReached}
+          className="w-full py-3 rounded-xl bg-[#1F4D3A] dark:bg-[#8FC7A6] text-white dark:text-night-900 text-sm font-semibold disabled:opacity-40 mb-2"
+        >
+          {busy
+            ? locatingOrigin
+              ? 'Getting your location…'
+              : 'Finding routes…'
+            : 'Find routes'}
+        </button>
 
-        {busy && (
-          <p className="text-xs text-ink-400 dark:text-night-400 text-center py-6 m-0">
-            {status === 'locating' ? 'Getting your location…' : 'Planning your route…'}
-          </p>
-        )}
+        <RemainingPlansNotice planCount={planCount} onUpgrade={onUpgrade} />
 
         {status === 'error' && errorMessage && (
           <div className="bg-aqi-unhealthy/10 border border-aqi-unhealthy/30 rounded-xl px-3.5 py-3 mb-4">
@@ -147,14 +240,22 @@ export default function RoutePlanningView({ onBack, onUpgrade, aqiReadings }: Ro
                   attribution='&copy; OpenStreetMap contributors'
                   url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 />
-                <Polyline
-                  positions={plan.route.coordinates}
-                  pathOptions={{
-                    color: '#1F4D3A',
-                    weight: 4,
-                    dashArray: plan.usingSampleData ? '6 6' : undefined
-                  }}
-                />
+                {plan.usingSampleData ? (
+                  <Polyline
+                    positions={plan.route.coordinates}
+                    pathOptions={{ color: '#1F4D3A', weight: 4, dashArray: '6 6' }}
+                  />
+                ) : plan.routeSegments && plan.routeSegments.length > 0 ? (
+                  plan.routeSegments.map((segment, index) => (
+                    <Polyline
+                      key={index}
+                      positions={segment.coordinates}
+                      pathOptions={{ color: aqiColor[segment.level], weight: 5 }}
+                    />
+                  ))
+                ) : (
+                  <Polyline positions={plan.route.coordinates} pathOptions={{ color: '#1F4D3A', weight: 4 }} />
+                )}
                 {origin && (
                   <CircleMarker
                     center={[origin.lat, origin.lng]}
@@ -169,6 +270,20 @@ export default function RoutePlanningView({ onBack, onUpgrade, aqiReadings }: Ro
                 />
               </MapContainer>
             </div>
+
+            {levelsOnRoute.length > 0 && (
+              <div className="flex flex-wrap gap-x-3 gap-y-1 px-0.5">
+                {levelsOnRoute.map((level) => (
+                  <span
+                    key={level}
+                    className="flex items-center gap-1 text-[11px] text-ink-600 dark:text-night-200"
+                  >
+                    <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: aqiColor[level] }} />
+                    {aqiLevelLabel[level]}
+                  </span>
+                ))}
+              </div>
+            )}
 
             <div className="grid grid-cols-2 gap-2">
               <div className="bg-ink-100 dark:bg-night-700 rounded-xl px-3 py-2.5">
@@ -205,9 +320,21 @@ export default function RoutePlanningView({ onBack, onUpgrade, aqiReadings }: Ro
               </div>
             )}
 
-            <p className="text-[11px] text-ink-400 dark:text-night-400 m-0">
-              {planCount} of {FREE_ROUTE_PLAN_LIMIT} free route plans used on this device.
-            </p>
+            {plan.worstStretch && (
+              <div
+                className="rounded-xl px-3.5 py-3 border"
+                style={{
+                  backgroundColor: `${aqiColor[plan.worstStretch.segment.level]}1A`,
+                  borderColor: `${aqiColor[plan.worstStretch.segment.level]}4D`
+                }}
+              >
+                <p className="text-xs text-ink-900 dark:text-night-100 m-0">
+                  Air quality dips to{' '}
+                  <span className="font-semibold">{aqiLevelLabel[plan.worstStretch.segment.level]}</span> about{' '}
+                  {formatDistance(plan.worstStretch.distanceFromStartMeters)} into your route.
+                </p>
+              </div>
+            )}
 
             <button
               onClick={reset}
@@ -218,9 +345,9 @@ export default function RoutePlanningView({ onBack, onUpgrade, aqiReadings }: Ro
           </div>
         )}
 
-        {status === 'idle' && (
-          <p className="text-xs text-ink-400 dark:text-night-400 text-center py-6 m-0">
-            Search a destination above to plan a route.
+        {status === 'idle' && !plan && (
+          <p className="text-xs text-ink-400 dark:text-night-400 text-center py-2 m-0">
+            Set a start and end point above, then tap Find routes.
           </p>
         )}
       </div>
