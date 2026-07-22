@@ -79,7 +79,37 @@ function RemainingPlansNotice({ planCount, onUpgrade }: { planCount: number; onU
 }
 
 /**
- * Real destination search (Nominatim, via SearchBar — no key needed) for
+ * A distinct "this trip isn't possible" card — separate from the generic
+ * error card below, since this isn't a bug or a network hiccup, it's a
+ * real finding about the two chosen points (either too far apart for the
+ * chosen activity, or not connected by any road/trail OpenRouteService
+ * knows about). See useRoutePlanning's planRoute for both checks.
+ */
+function InfeasibleRouteNotice({ reason }: { reason: string }) {
+  return (
+    <div className="bg-aqi-unhealthy/10 border border-aqi-unhealthy/30 rounded-xl px-3.5 py-3 mb-4 flex gap-2.5">
+      <svg
+        width="18"
+        height="18"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        className="text-aqi-unhealthy shrink-0 mt-0.5"
+      >
+        <circle cx="12" cy="12" r="10" />
+        <line x1="4.9" y1="4.9" x2="19.1" y2="19.1" />
+      </svg>
+      <div>
+        <p className="text-xs font-semibold text-ink-900 dark:text-night-100 m-0">Route not possible</p>
+        <p className="text-xs text-ink-600 dark:text-night-200 mt-1 mb-0">{reason}</p>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Real destination search (Photon, via SearchBar — no key needed) for
  * both Start and End, real device geolocation as a one-tap alternative
  * for Start, feeding a route request to OpenRouteService (see
  * services/routes.ts). Until OPENROUTESERVICE_API_KEY is set
@@ -87,6 +117,13 @@ function RemainingPlansNotice({ planCount, onUpgrade }: { planCount: number; onU
  * straight-line route instead — this screen always shows that as a
  * banner + dashed line, never blending it in as if it were real
  * turn-by-turn directions.
+ *
+ * Before ever calling the routing API, useRoutePlanning also runs a
+ * straight-line feasibility check per activity, and separately surfaces
+ * OpenRouteService's own "no route exists" responses — both shown here
+ * as the same distinct InfeasibleRouteNotice, rather than the generic
+ * error card, so a genuinely impossible trip reads differently from a
+ * technical failure.
  *
  * For real routes, the line itself is colored segment-by-segment using
  * the nearest real AQI reading at each point along the path (see
@@ -108,6 +145,7 @@ export default function RoutePlanningView({ onBack, onUpgrade, aqiReadings }: Ro
     status,
     plan,
     errorMessage,
+    infeasibleReason,
     planCount,
     freeLimitReached,
     canPlan,
@@ -202,6 +240,8 @@ export default function RoutePlanningView({ onBack, onUpgrade, aqiReadings }: Ro
         </button>
 
         <RemainingPlansNotice planCount={planCount} onUpgrade={onUpgrade} />
+
+        {status === 'infeasible' && infeasibleReason && <InfeasibleRouteNotice reason={infeasibleReason} />}
 
         {status === 'error' && errorMessage && (
           <div className="bg-aqi-unhealthy/10 border border-aqi-unhealthy/30 rounded-xl px-3.5 py-3 mb-4">
