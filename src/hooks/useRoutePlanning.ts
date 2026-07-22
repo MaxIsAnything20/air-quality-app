@@ -8,6 +8,15 @@ import {
   hasFreeRoutePlansRemaining,
   incrementRoutePlanCount,
 } from '../services/routePlans'
+import {
+  averageAqiAlongRoute,
+  buildRouteAqiSegments,
+  distanceMeters,
+  findWorstRouteStretch,
+  nearestAqiReading,
+  RouteAqiSegment,
+  WorstRouteStretch,
+} from '../services/routeAir'
 
 export interface LatLng {
   lat: number
@@ -20,6 +29,12 @@ export interface RoutePlan {
   originAqi: number | null
   destinationAqi: number | null
   routeAvgAqi: number | null
+  // Both null for the sample placeholder route — its straight-line shape
+  // isn't real, so tracing "AQI along the path" would be tracing a path
+  // that doesn't exist. Only populated once a real OpenRouteService
+  // geometry comes back. See services/routeAir.ts.
+  routeSegments: RouteAqiSegment[] | null
+  worstStretch: WorstRouteStretch | null
 }
 
 // Commonly used rough pace estimates (not measured, not personalized) —
@@ -28,51 +43,6 @@ export interface RoutePlan {
 // duration straight from OpenRouteService instead of this.
 const AVERAGE_WALK_SPEED_MPS = 1.4 // ~5 km/h
 const AVERAGE_CYCLE_SPEED_MPS = 4.2 // ~15 km/h
-
-function toRad(deg: number): number {
-  return (deg * Math.PI) / 180
-}
-
-function distanceMeters(a: LatLng, b: LatLng): number {
-  const R = 6371000
-  const dLat = toRad(b.lat - a.lat)
-  const dLng = toRad(b.lng - a.lng)
-  const lat1 = toRad(a.lat)
-  const lat2 = toRad(b.lat)
-  const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2
-  return 2 * R * Math.asin(Math.sqrt(h))
-}
-
-function nearestAqiReading(point: LatLng, readings: AqiReading[]): AqiReading | null {
-  let best: AqiReading | null = null
-  let bestDist = Infinity
-  for (const r of readings) {
-    const d = distanceMeters(point, { lat: r.lat, lng: r.lng })
-    if (d < bestDist) {
-      bestDist = d
-      best = r
-    }
-  }
-  return best
-}
-
-// Samples points along the route and averages each one's nearest real AQI
-// reading — same "pair a coordinate with the closest station" idea as
-// activityLog.ts's exposure math, just applied to a planned path instead
-// of a recorded one. Only meaningful for a real route geometry; the sample
-// placeholder route deliberately never calls this (see planRouteTo below).
-function averageAqiAlongRoute(coordinates: [number, number][], readings: AqiReading[]): number | null {
-  if (readings.length === 0 || coordinates.length === 0) return null
-  const step = Math.max(1, Math.floor(coordinates.length / 20))
-  const samples: number[] = []
-  for (let i = 0; i < coordinates.length; i += step) {
-    const [lat, lng] = coordinates[i]
-    const nearest = nearestAqiReading({ lat, lng }, readings)
-    if (nearest) samples.push(nearest.value)
-  }
-  if (samples.length === 0) return null
-  return Math.round(samples.reduce((a, b) => a + b, 0) / samples.length)
-}
 
 // A clearly-labeled placeholder route (straight line between the two real
 // points, with an honest estimated duration from a commonly-used average
@@ -116,9 +86,11 @@ function getCurrentPosition(): Promise<LatLng> {
  * requests a real route from OpenRouteService (see services/routes.ts),
  * and falls back to a clearly-labeled sample route when
  * OPENROUTESERVICE_API_KEY isn't configured — never silently pretending a
- * placeholder is a real route. AQI figures are always real, pulled from
+ * placeholder is a real route. AQI figures (average, per-segment, worst
+ * stretch — see services/routeAir.ts) are always real, pulled from
  * whatever aqiReadings the caller passes in (the same live/sample AirNow
- * data already powering the rest of the app).
+ * data already powering the rest of the app), and only computed for real
+ * route geometry.
  */
 export function useRoutePlanning(aqiReadings: AqiReading[]) {
   const [status, setStatus] = useState<'idle' | 'locating' | 'loading' | 'ready' | 'error'>('idle')
@@ -169,10 +141,12 @@ export function useRoutePlanning(aqiReadings: AqiReading[]) {
       }
 
       const routeAvgAqi = usingSampleData ? null : averageAqiAlongRoute(route.coordinates, aqiReadings)
+      const routeSegments = usingSampleData ? null : buildRouteAqiSegments(route.coordinates, aqiReadings)
+      const worstStretch = routeSegments ? findWorstRouteStretch(routeSegments) : null
       const originAqi = nearestAqiReading(originPoint, aqiReadings)?.value ?? null
       const destinationAqi = nearestAqiReading(destination, aqiReadings)?.value ?? null
 
-      setPlan({ route, usingSampleData, originAqi, destinationAqi, routeAvgAqi })
+      setPlan({ route, usingSampleData, originAqi, destinationAqi, routeAvgAqi, routeSegments, worstStretch })
       setPlanCount(incrementRoutePlanCount())
       setStatus('ready')
     },
