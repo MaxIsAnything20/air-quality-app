@@ -5,7 +5,7 @@ import type { Activity, ActivityPoint, ActivityType } from '../types'
  *
  * Why localStorage and not a backend: this is the web-realistic version of
  * Respira's activity tracking (see README "Roadmap"). A native rebuild would
- * sync this to a server and to Health/Strava; for now everything lives on
+  * sync this to a server and to Health; for now everything lives on
  * the device the activity was recorded on.
  */
 
