@@ -13,7 +13,7 @@ type Plan = 'monthly' | 'yearly'
 // reusing their marketing copy.
 const FEATURES = [
   'Automatic 24/7 exposure tracking, indoors and outdoors',
-  '4-day air quality and pollen forecasts',
+    '4-day air quality forecasts',
   'Unlimited cleaner route and timing suggestions',
   'PM2.5, PM10, NO2, O3 and SO2 tracked, not just one number',
   'Create leaderboards to challenge friends and groups',
