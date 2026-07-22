@@ -6,13 +6,18 @@ interface PaywallViewProps {
 
 type Plan = 'monthly' | 'yearly'
 
+// Mirrors the real feature set of AirTrack's actual Premium tier —
+// 24/7 automatic tracking, multi-day forecasts, multi-pollutant
+// tracking, unlimited route planning, leaderboards, richer
+// notifications — described in this app's own words rather than
+// reusing their marketing copy.
 const FEATURES = [
-  'AutoTrack — automatic 24/7 activity tracking',
-  'Cleaner route suggestions for runs, walks, and rides',
-  'Pollen forecasts alongside air quality',
-  'Indoor air sensor integration',
-  'Priority background alerts',
-  'Connect Strava, Apple Health, and Garmin',
+  'Automatic 24/7 exposure tracking, indoors and outdoors',
+  '4-day air quality and pollen forecasts',
+  'Unlimited cleaner route and timing suggestions',
+  'PM2.5, PM10, NO2, O3 and SO2 tracked, not just one number',
+  'Create leaderboards to challenge friends and groups',
+  'Daily and post-activity notifications',
 ]
 
 export default function PaywallView({ onBack }: PaywallViewProps) {
@@ -84,11 +89,13 @@ export default function PaywallView({ onBack }: PaywallViewProps) {
           </button>
         </div>
 
+        <p className="text-xs text-ink-600 dark:text-night-200 mb-4 text-center">7-day free trial, cancel anytime.</p>
+
         <button
           onClick={() => setShowNotice(true)}
           className="w-full rounded-2xl bg-gradient-to-r from-[#1F4D3A] to-[#2F6B4F] dark:from-[#0D2A1E] dark:to-[#123A29] text-white text-sm font-medium py-3.5"
         >
-          Continue with {plan === 'monthly' ? 'Monthly' : 'Yearly'}
+          Start free trial — {plan === 'monthly' ? 'Monthly' : 'Yearly'}
         </button>
 
         {showNotice && (
@@ -98,7 +105,7 @@ export default function PaywallView({ onBack }: PaywallViewProps) {
         )}
 
         <p className="text-[11px] text-ink-400 dark:text-night-400 mt-4 text-center">
-          Cancel anytime. Prices shown for illustration only.
+          Prices shown for illustration only.
         </p>
       </div>
     </div>
