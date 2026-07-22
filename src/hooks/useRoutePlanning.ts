@@ -1,7 +1,7 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import type { AqiReading } from '../types'
 import { ApiNotConfiguredError, RouteNotPossibleError } from '../services/apiError'
-import { fetchRoute, RouteProfile, RouteResult } from '../services/routes'
+import { fetchRoutes, RouteProfile, RouteResult } from '../services/routes'
 import {
   FREE_ROUTE_PLAN_LIMIT,
   getRoutePlanCount,
@@ -23,6 +23,8 @@ export interface LatLng {
   lng: number
 }
 
+export type RouteOptionLabel = 'Cleanest' | 'Shortest' | 'Balanced' | 'Best'
+
 export interface RoutePlan {
   route: RouteResult
   usingSampleData: boolean
@@ -35,6 +37,10 @@ export interface RoutePlan {
   // geometry comes back. See services/routeAir.ts.
   routeSegments: RouteAqiSegment[] | null
   worstStretch: WorstRouteStretch | null
+  // Only set when more than one real route came back from OpenRouteService
+  // — see labelRouteOptions below. Undefined for the single-route/sample
+  // case, where a label would be meaningless.
+  label?: RouteOptionLabel
 }
 
 // Commonly used rough pace estimates (not measured, not personalized) —
@@ -62,7 +68,9 @@ const METERS_PER_MILE = 1609.34
 // see api/routes.ts. Never presented as real turn-by-turn directions;
 // RoutePlanningView.tsx always shows a "sample route" banner alongside it,
 // and this app deliberately does NOT compute an "AQI along the route" for
-// it (see planRoute below) since that path shape isn't real.
+// it (see planRoute below) since that path shape isn't real. Sample mode
+// only ever produces one route — there's no meaningful "alternative"
+// straight line between two fixed points.
 function buildSampleRoute(start: LatLng, end: LatLng, profile: RouteProfile): RouteResult {
   const steps = 6
   const coordinates: [number, number][] = []
@@ -77,6 +85,37 @@ function buildSampleRoute(start: LatLng, end: LatLng, profile: RouteProfile): Ro
     distanceMeters: straightLineMeters,
     durationSeconds: straightLineMeters / speed
   }
+}
+
+// Tags each real route option with which trade-off it represents —
+// mirrors AirTrack's "cleanest / balanced / shortest" route comparison.
+// Only called for real (non-sample) route sets; ties are broken by
+// whichever route ORS listed first. If the same route wins on both AQI
+// and distance, it's labeled "Best" instead of being double-labeled, and
+// any remaining route(s) are labeled "Balanced" as a middle option.
+function labelRouteOptions(plans: RoutePlan[]): RoutePlan[] {
+  if (plans.length <= 1) return plans
+
+  let cleanestIndex = 0
+  let shortestIndex = 0
+  plans.forEach((plan, index) => {
+    const currentAqi = plans[cleanestIndex].routeAvgAqi
+    if (plan.routeAvgAqi != null && (currentAqi == null || plan.routeAvgAqi < currentAqi)) {
+      cleanestIndex = index
+    }
+    if (plan.route.distanceMeters < plans[shortestIndex].route.distanceMeters) {
+      shortestIndex = index
+    }
+  })
+
+  return plans.map((plan, index) => {
+    if (cleanestIndex === shortestIndex && index === cleanestIndex) {
+      return { ...plan, label: 'Best' as const }
+    }
+    if (index === cleanestIndex) return { ...plan, label: 'Cleanest' as const }
+    if (index === shortestIndex) return { ...plan, label: 'Shortest' as const }
+    return { ...plan, label: 'Balanced' as const }
+  })
 }
 
 function getCurrentPosition(): Promise<LatLng> {
@@ -105,17 +144,17 @@ function getCurrentPosition(): Promise<LatLng> {
  * Once both ends are set, planRoute first runs a cheap straight-line
  * feasibility check (MAX_REALISTIC_DISTANCE_METERS) before ever calling
  * the routing API — catching "that's not a realistic single trip"
- * requests immediately. It then requests a real route from
- * OpenRouteService (see services/routes.ts), falling back to a
- * clearly-labeled sample straight-line route when
+ * requests immediately. It then requests up to 3 real route alternatives
+ * from OpenRouteService (see services/routes.ts's fetchRoutes), falling
+ * back to a single clearly-labeled sample straight-line route when
  * OPENROUTESERVICE_API_KEY isn't configured — never silently pretending a
  * placeholder is a real route. If OpenRouteService itself reports the two
  * points genuinely aren't connected by any road/trail, that's surfaced as
  * the same 'infeasible' status as the distance check, distinct from a
  * generic technical error. AQI figures (average, per-segment, worst
  * stretch — see services/routeAir.ts) are always real, pulled from
- * whatever aqiReadings the caller passes in, and only computed for real
- * route geometry.
+ * whatever aqiReadings the caller passes in, computed separately for each
+ * route option, and only computed for real route geometry.
  */
 export function useRoutePlanning(aqiReadings: AqiReading[]) {
   const [origin, setOrigin] = useState<LatLng | null>(null)
@@ -125,7 +164,8 @@ export function useRoutePlanning(aqiReadings: AqiReading[]) {
   const [destination, setDestination] = useState<(LatLng & { label: string }) | null>(null)
 
   const [status, setStatus] = useState<'idle' | 'loading' | 'ready' | 'error' | 'infeasible'>('idle')
-  const [plan, setPlan] = useState<RoutePlan | null>(null)
+  const [routeOptions, setRouteOptions] = useState<RoutePlan[]>([])
+  const [selectedRouteIndex, setSelectedRouteIndex] = useState(0)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [infeasibleReason, setInfeasibleReason] = useState<string | null>(null)
   const [planCount, setPlanCount] = useState(() => getRoutePlanCount())
@@ -175,7 +215,8 @@ export function useRoutePlanning(aqiReadings: AqiReading[]) {
         return
       }
 
-      setPlan(null)
+      setRouteOptions([])
+      setSelectedRouteIndex(0)
       setStatus('loading')
 
       const straightLineMeters = distanceMeters(origin, destination)
@@ -190,13 +231,13 @@ export function useRoutePlanning(aqiReadings: AqiReading[]) {
         return
       }
 
-      let route: RouteResult
+      let routes: RouteResult[]
       let usingSampleData = false
       try {
-        route = await fetchRoute(origin, destination, profile)
+        routes = await fetchRoutes(origin, destination, profile)
       } catch (err) {
         if (err instanceof ApiNotConfiguredError) {
-          route = buildSampleRoute(origin, destination, profile)
+          routes = [buildSampleRoute(origin, destination, profile)]
           usingSampleData = true
         } else if (err instanceof RouteNotPossibleError) {
           setInfeasibleReason(err.message)
@@ -209,21 +250,42 @@ export function useRoutePlanning(aqiReadings: AqiReading[]) {
         }
       }
 
-      const routeAvgAqi = usingSampleData ? null : averageAqiAlongRoute(route.coordinates, aqiReadings)
-      const routeSegments = usingSampleData ? null : buildRouteAqiSegments(route.coordinates, aqiReadings)
-      const worstStretch = routeSegments ? findWorstRouteStretch(routeSegments) : null
       const originAqi = nearestAqiReading(origin, aqiReadings)?.value ?? null
       const destinationAqi = nearestAqiReading(destination, aqiReadings)?.value ?? null
 
-      setPlan({ route, usingSampleData, originAqi, destinationAqi, routeAvgAqi, routeSegments, worstStretch })
+      let plans: RoutePlan[] = routes.map((route) => {
+        const routeAvgAqi = usingSampleData ? null : averageAqiAlongRoute(route.coordinates, aqiReadings)
+        const routeSegments = usingSampleData ? null : buildRouteAqiSegments(route.coordinates, aqiReadings)
+        const worstStretch = routeSegments ? findWorstRouteStretch(routeSegments) : null
+        return { route, usingSampleData, originAqi, destinationAqi, routeAvgAqi, routeSegments, worstStretch }
+      })
+
+      if (!usingSampleData) {
+        plans = labelRouteOptions(plans)
+        // Default to the cleanest option (or whichever tied for "Best") —
+        // matches the app's overall "lead with air quality" framing,
+        // while every option stays one tap away via selectRoute below.
+        const defaultIndex = plans.findIndex((p) => p.label === 'Best' || p.label === 'Cleanest')
+        setSelectedRouteIndex(defaultIndex >= 0 ? defaultIndex : 0)
+      }
+
+      setRouteOptions(plans)
       setPlanCount(incrementRoutePlanCount())
       setStatus('ready')
     },
     [origin, destination, aqiReadings]
   )
 
+  const selectRoute = useCallback(
+    (index: number) => {
+      if (index >= 0 && index < routeOptions.length) setSelectedRouteIndex(index)
+    },
+    [routeOptions.length]
+  )
+
   const reset = useCallback(() => {
-    setPlan(null)
+    setRouteOptions([])
+    setSelectedRouteIndex(0)
     setErrorMessage(null)
     setInfeasibleReason(null)
     setStatus('idle')
@@ -231,6 +293,8 @@ export function useRoutePlanning(aqiReadings: AqiReading[]) {
     setOriginLabel(null)
     setDestination(null)
   }, [])
+
+  const plan = useMemo(() => routeOptions[selectedRouteIndex] ?? null, [routeOptions, selectedRouteIndex])
 
   return {
     origin,
@@ -244,6 +308,9 @@ export function useRoutePlanning(aqiReadings: AqiReading[]) {
     clearDestination,
     status,
     plan,
+    routeOptions,
+    selectedRouteIndex,
+    selectRoute,
     errorMessage,
     infeasibleReason,
     planCount,
