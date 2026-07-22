@@ -1,10 +1,13 @@
 import { DailyExposure, ExposureStats } from '../types'
 import { aqiColor } from '../aqiColors'
+import ExposureScoreCard from './ExposureScoreCard'
+import type { ExposureScoreResult } from '../services/exposureScore'
 
 interface HistoryViewProps {
   monthlyHistory: DailyExposure[]
   stats: ExposureStats
   usingSampleData: boolean
+  exposureScore: ExposureScoreResult | null
 }
 
 const LEVEL_LABELS: { level: DailyExposure['level']; label: string }[] = [
@@ -24,7 +27,7 @@ function dateKey(day: number): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
 }
 
-export default function HistoryView({ monthlyHistory, stats, usingSampleData }: HistoryViewProps) {
+export default function HistoryView({ monthlyHistory, stats, usingSampleData, exposureScore }: HistoryViewProps) {
   const loggedCount = monthlyHistory.length
   const hasAnyData = loggedCount > 0
 
@@ -61,6 +64,13 @@ export default function HistoryView({ monthlyHistory, stats, usingSampleData }: 
             ? " Logging only happens on days you actually open the app — the gaps below are days you didn't, not days with good air quality."
             : ''}
       </p>
+
+      {/* Personal exposure score sits above the calendar-month stats —
+          it's a rolling 7-day figure that also folds in tracked
+          activities, so it answers a different question ("how has my
+          actual recent exposure been") than the monthly chart below it
+          ("what has this month's air quality looked like"). */}
+      <ExposureScoreCard score={exposureScore} usingSampleData={usingSampleData} />
 
       <div className="flex gap-2.5 mb-5">
         <div className="flex-1 bg-ink-100 dark:bg-night-700 rounded-xl px-3 py-2.5">
