@@ -35,6 +35,7 @@ import { HealthProfile, isSensitiveGroup, loadHealthProfile, saveHealthProfile }
 import { detectDivergence, summarizeDivergence } from './services/divergence'
 import { getRecentDailyHistory } from './services/historyLog'
 import { computeExposureScore } from './services/exposureScore'
+import { computeActivityStreak, hasEarnedFirstActivityBadge } from './services/streak'
 import { RegionSelection } from './types'
 
 const EXPOSURE_SCORE_WINDOW_DAYS = 7
@@ -133,6 +134,18 @@ export default function App() {
     [air.monthlyHistory, activityTracking.history, healthProfile]
   )
 
+  // A real, honestly-computed streak and badge state (see
+  // services/streak.ts) built only from completed activities already
+  // saved in this browser — no server account, no invented milestones.
+  const activityStreak = useMemo(
+    () => computeActivityStreak(activityTracking.history),
+    [activityTracking.history]
+  )
+  const firstBadgeEarned = useMemo(
+    () => hasEarnedFirstActivityBadge(activityTracking.history),
+    [activityTracking.history]
+  )
+
   const summary = useSummary(
     air.stats.currentAqi,
     air.alert.level,
@@ -176,6 +189,8 @@ export default function App() {
             forecastPeakAqi={air.usingSampleData ? null : air.stats.forecastPeakAqi}
             locationLabel={air.locationLabel}
             exposureScore={exposureScore}
+            streak={activityStreak}
+            badgeEarned={firstBadgeEarned}
             onNavigate={navigateTo}
             onOpenMenu={() => setMenuOpen(true)}
           />
@@ -310,7 +325,9 @@ export default function App() {
 
         {screen === 'settings' && <SettingsView onBack={goBack} onNavigate={navigateTo} />}
 
-        {screen === 'settingsProfile' && <SettingsProfileView onBack={goBack} />}
+        {screen === 'settingsProfile' && (
+          <SettingsProfileView onBack={goBack} streak={activityStreak} badgeEarned={firstBadgeEarned} />
+        )}
 
         {screen === 'settingsHealthProfile' && (
           <SettingsHealthProfileView onBack={goBack} profile={healthProfile} onProfileChange={handleProfileChange} />
