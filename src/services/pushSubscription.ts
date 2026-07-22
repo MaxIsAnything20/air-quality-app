@@ -11,6 +11,14 @@
 // whole point of the public/private split is that only the private half
 // (VAPID_PRIVATE_KEY, server-only, used in api/push/check.ts) needs to
 // stay secret.
+import type { Activity } from '../types'
+import {
+  activityAverageAqi,
+  activityDistanceMeters,
+  activityDurationMs,
+  activityPeakAqi,
+} from './activityLog'
+
 const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY as string | undefined
 
 export function isPushSupported(): boolean {
@@ -53,10 +61,10 @@ export interface PushSubscribeInput {
 }
 
 /** Registers the service worker (idempotent), requests a push
- *  subscription (prompts for notification permission if not already
- *  granted/denied), and registers it with the server. Throws on any
- *  failure — callers should catch and show that background alerts
- *  couldn't be enabled rather than silently doing nothing. */
+ * subscription (prompts for notification permission if not already
+ * granted/denied), and registers it with the server. Throws on any
+ * failure — callers should catch and show that background alerts
+ * couldn't be enabled rather than silently doing nothing. */
 export async function enableBackgroundAlerts(input: PushSubscribeInput): Promise<void> {
   if (!isPushSupported()) {
     throw new Error('Push notifications are not supported in this browser, or VITE_VAPID_PUBLIC_KEY is not set.')
@@ -90,8 +98,8 @@ export async function enableBackgroundAlerts(input: PushSubscribeInput): Promise
 }
 
 /** Unsubscribes both locally and on the server. Best-effort on the server
- *  half — if that call fails, the local unsubscribe still happens so the
- *  browser stops holding a subscription the person asked to cancel. */
+ * half — if that call fails, the local unsubscribe still happens so the
+ * browser stops holding a subscription the person asked to cancel. */
 export async function disableBackgroundAlerts(): Promise<void> {
   if (!('serviceWorker' in navigator)) return
   const registration = await navigator.serviceWorker.getRegistration('/sw.js')
@@ -116,4 +124,52 @@ export async function getBackgroundAlertStatus(): Promise<'subscribed' | 'unsubs
   const registration = await navigator.serviceWorker.getRegistration('/sw.js')
   const subscription = await registration?.pushManager.getSubscription()
   return subscription ? 'subscribed' : 'unsubscribed'
+}
+
+/** Fires a one-off "activity complete" push through the same subscription
+ * enableBackgroundAlerts() registered, summarizing distance/duration/AQI
+ * exposure — a bonus notification for when the person isn't looking at
+ * the in-app activity summary screen right as it finishes. Reuses
+ * /api/push/subscribe (action: 'notifyNow') rather than a new serverless
+ * function, since Vercel's Hobby plan caps functions per deployment (see
+ * api/events.ts's comment / task #118).
+ *
+ * Best-effort and silent on every failure path: push not supported,
+ * background alerts never enabled on this device, or the request itself
+ * failing all just mean no notification goes out — same "never just
+ * breaks" pattern as the rest of the app. The in-app activity summary
+ * screen is always shown regardless; this is never the only feedback a
+ * person gets about their activity. */
+export async function sendActivitySummaryPush(activity: Activity): Promise<void> {
+  try {
+    if (!('serviceWorker' in navigator)) return
+    const registration = await navigator.serviceWorker.getRegistration('/sw.js')
+    const subscription = await registration?.pushManager.getSubscription()
+    if (!subscription) return
+
+    const km = activityDistanceMeters(activity) / 1000
+    const minutes = Math.round(activityDurationMs(activity) / 60000)
+    const avgAqi = activityAverageAqi(activity)
+    const peakAqi = activityPeakAqi(activity)
+
+    const distancePart = km >= 0.1 ? `${km.toFixed(km < 10 ? 2 : 1)} km, ` : ''
+    const aqiPart =
+      avgAqi != null
+        ? ` Avg AQI ${avgAqi}${peakAqi != null && peakAqi !== avgAqi ? `, peak ${peakAqi}.` : '.'}`
+        : ' No air quality readings were available along your route.'
+    const label = activity.type.charAt(0).toUpperCase() + activity.type.slice(1)
+
+    await fetch('/api/push/subscribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'notifyNow',
+        endpoint: subscription.endpoint,
+        title: 'Activity complete',
+        body: `${label} — ${distancePart}${minutes} min.${aqiPart}`
+      })
+    })
+  } catch {
+    // Best-effort — see doc comment above.
+  }
 }
