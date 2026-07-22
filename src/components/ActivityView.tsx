@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { MapContainer, Polyline, TileLayer } from 'react-leaflet'
+import { CircleMarker, MapContainer, Polyline, TileLayer, useMap } from 'react-leaflet'
 import type { Activity, ActivityType } from '../types'
 import { ACTIVITY_TYPE_GROUPS, ACTIVITY_TYPE_LABELS, aqiLevelFromValue } from '../types'
 import { aqiColor, aqiLevelLabel } from '../aqiColors'
@@ -107,6 +107,73 @@ function RouteMap({ activity }: { activity: Activity }) {
         ))}
       </MapContainer>
     </div>
+  )
+}
+
+/** Keeps a live map centered on a moving position — MapContainer's
+ * center/zoom props only apply on first mount, so following new GPS
+ * points as they arrive needs an imperative map.setView() call instead. */
+function RecenterOnLive({ position }: { position: [number, number] }) {
+  const map = useMap()
+  useEffect(() => {
+    map.setView(position, map.getZoom(), { animate: true })
+  }, [position, map])
+  return null
+}
+
+/** Same AQI-colored-segment rendering as RouteMap, but draggable/zoomable
+ * and re-centering on the newest real GPS point as the activity records —
+ * this is what makes the live map actually "live" rather than a static
+ * snapshot. */
+function LiveRouteMap({ activity }: { activity: Activity }) {
+  if (activity.points.length === 0) {
+    return (
+      <div className="h-full w-full flex items-center justify-center bg-ink-100 dark:bg-night-700">
+        <p className="text-xs text-ink-400 dark:text-night-400 px-4 text-center m-0">
+          Waiting for a GPS fix to start drawing your route.
+        </p>
+      </div>
+    )
+  }
+
+  const last: [number, number] = [
+    activity.points[activity.points.length - 1].lat,
+    activity.points[activity.points.length - 1].lng,
+  ]
+
+  const segments: { positions: [number, number][]; color: string; weight: number }[] = []
+  for (let i = 1; i < activity.points.length; i++) {
+    const prev = activity.points[i - 1]
+    const curr = activity.points[i]
+    const aqi = curr.nearestAqi ?? prev.nearestAqi
+    const level = aqi != null ? aqiLevelFromValue(aqi) : 'good'
+    const weight = aqi != null ? 3 + Math.min(4, Math.floor(aqi / 75)) : 3
+    segments.push({
+      positions: [
+        [prev.lat, prev.lng],
+        [curr.lat, curr.lng],
+      ],
+      color: aqiColor[level],
+      weight,
+    })
+  }
+
+  return (
+    <MapContainer center={last} zoom={16} className="h-full w-full" zoomControl={false}>
+      <RecenterOnLive position={last} />
+      <TileLayer
+        attribution='&copy; OpenStreetMap contributors'
+        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+      />
+      {segments.map((seg, i) => (
+        <Polyline key={i} positions={seg.positions} pathOptions={{ color: seg.color, weight: seg.weight }} />
+      ))}
+      <CircleMarker
+        center={last}
+        radius={7}
+        pathOptions={{ color: '#1F4D3A', fillColor: '#1F4D3A', fillOpacity: 1, weight: 2 }}
+      />
+    </MapContainer>
   )
 }
 
@@ -244,6 +311,7 @@ export default function ActivityView({ tracking, currentAqi }: ActivityViewProps
   const [tick, setTick] = useState(0)
   const [viewingActivity, setViewingActivity] = useState<Activity | null>(null)
   const [justFinished, setJustFinished] = useState<Activity | null>(null)
+  const [fullScreenMap, setFullScreenMap] = useState(false)
   const prevActiveIdRef = useRef<string | null>(null)
 
   // Re-render once a second while an activity is active so the live
@@ -252,6 +320,14 @@ export default function ActivityView({ tracking, currentAqi }: ActivityViewProps
     if (!active) return
     const id = setInterval(() => setTick((t) => t + 1), 1000)
     return () => clearInterval(id)
+  }, [active])
+
+  // The full-screen map only makes sense while an activity is running —
+  // if the activity stops or gets discarded out from under it, drop back
+  // to the normal (non-map-covering) tracking view instead of leaving a
+  // stale overlay up.
+  useEffect(() => {
+    if (!active) setFullScreenMap(false)
   }, [active])
 
   // When `active` transitions to null after being non-null, the activity
@@ -303,7 +379,7 @@ export default function ActivityView({ tracking, currentAqi }: ActivityViewProps
     void tick
 
     return (
-      <div className="px-4 py-4 space-y-4">
+      <div className="relative px-4 py-4 space-y-4">
         {resumedNotice && (
           <div className="bg-aqi-moderate/10 border border-aqi-moderate/30 rounded-xl px-3 py-2.5">
             <p className="text-xs text-ink-900 dark:text-night-100 m-0">
@@ -312,11 +388,24 @@ export default function ActivityView({ tracking, currentAqi }: ActivityViewProps
           </div>
         )}
 
-        <div className="text-center py-4">
+        <div className="text-center py-2">
           <p className="text-xs text-ink-400 dark:text-night-400 uppercase tracking-wide mb-1">
             {ACTIVITY_TYPE_LABELS[active.type]}
           </p>
           <p className="text-4xl font-mono text-ink-900 dark:text-night-100 m-0">{formatDuration(duration)}</p>
+        </div>
+
+        <div className="relative h-48 rounded-xl overflow-hidden border border-ink-200 dark:border-night-600">
+          <LiveRouteMap activity={active} />
+          <button
+            onClick={() => setFullScreenMap(true)}
+            aria-label="Expand map to full screen"
+            className="absolute top-2 right-2 z-[1000] w-8 h-8 rounded-lg bg-white dark:bg-night-800 border border-ink-200 dark:border-night-600 flex items-center justify-center text-ink-900 dark:text-night-100"
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M8 21H5a2 2 0 0 1-2-2v-3" />
+            </svg>
+          </button>
         </div>
 
         <div className="grid grid-cols-2 gap-2">
@@ -350,6 +439,52 @@ export default function ActivityView({ tracking, currentAqi }: ActivityViewProps
             Stop
           </button>
         </div>
+
+        {fullScreenMap && (
+          <div className="absolute inset-0 z-50 bg-white dark:bg-night-900 flex flex-col">
+            <div className="flex-1 relative">
+              <LiveRouteMap activity={active} />
+              <button
+                onClick={() => setFullScreenMap(false)}
+                aria-label="Collapse map"
+                className="absolute top-3 left-3 z-[1000] w-9 h-9 rounded-full bg-white dark:bg-night-800 border border-ink-200 dark:border-night-600 flex items-center justify-center text-ink-900 dark:text-night-100"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="m15 18-6-6 6-6" />
+                </svg>
+              </button>
+              <div className="absolute top-3 right-3 z-[1000]">
+                <AqiBadge aqi={lastAqi} />
+              </div>
+            </div>
+            <div className="border-t border-ink-200 dark:border-night-600 px-4 py-3 bg-white dark:bg-night-900">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <p className="text-xs text-ink-400 dark:text-night-400 m-0">{ACTIVITY_TYPE_LABELS[active.type]}</p>
+                  <p className="text-xl font-mono text-ink-900 dark:text-night-100 m-0">{formatDuration(duration)}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-ink-400 dark:text-night-400 m-0">Distance</p>
+                  <p className="text-sm font-medium text-ink-900 dark:text-night-100 m-0">{formatDistance(distance)}</p>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={discard}
+                  className="flex-1 py-2.5 rounded-xl bg-ink-100 dark:bg-night-700 text-ink-900 dark:text-night-100 text-sm font-medium"
+                >
+                  Discard
+                </button>
+                <button
+                  onClick={stop}
+                  className="flex-1 py-2.5 rounded-xl bg-gradient-to-b from-[#1F4D3A] to-[#2F6B4F] dark:from-[#0D2A1E] dark:to-[#123A29] text-white text-sm font-medium"
+                >
+                  Stop
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     )
   }
