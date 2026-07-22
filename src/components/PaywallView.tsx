@@ -46,9 +46,77 @@ const PAGES: FeaturePage[] = [
   },
 ]
 
+const PLAN_PRICE: Record<Plan, { amount: string; period: string }> = {
+  monthly: { amount: '$4.99', period: 'month' },
+  yearly: { amount: '$39.99', period: 'year' },
+}
+
+function trialEndDateLabel(): string {
+  const end = new Date()
+  end.setDate(end.getDate() + 7)
+  return end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+interface SubscriptionPreviewModalProps {
+  plan: Plan
+  onCancel: () => void
+  onConfirm: () => void
+}
+
+/**
+ * Previews the actual terms before starting the (fake) trial — same
+ * pattern real subscription flows use (Apple's own purchase-confirmation
+ * sheet, for instance): what you get free, when the trial ends, and what
+ * it would cost after that if you didn't cancel. The end date is a real
+ * computed date (today + 7 days), not a fabricated one — this app just
+ * never acts on it, since there's no billing behind it.
+ */
+function SubscriptionPreviewModal({ plan, onCancel, onConfirm }: SubscriptionPreviewModalProps) {
+  const { amount, period } = PLAN_PRICE[plan]
+  return (
+    <div className="absolute inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 px-4 pb-4 sm:pb-0">
+      <div className="w-full max-w-[340px] bg-white dark:bg-night-800 rounded-2xl p-5">
+        <p className="text-xs font-semibold tracking-wide text-[#D9922B] uppercase mb-1">Subscription preview</p>
+        <h2 className="text-lg font-semibold text-ink-900 dark:text-night-100 m-0 mb-3">
+          7 days free, then {amount}/{period}
+        </h2>
+        <div className="flex flex-col gap-2 mb-4">
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-ink-600 dark:text-night-200">Today</span>
+            <span className="text-ink-900 dark:text-night-100 font-medium">Full access, free</span>
+          </div>
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-ink-600 dark:text-night-200">{trialEndDateLabel()}</span>
+            <span className="text-ink-900 dark:text-night-100 font-medium">
+              Trial ends — {amount}/{period} unless cancelled
+            </span>
+          </div>
+        </div>
+        <p className="text-[11px] text-ink-400 dark:text-night-400 mb-4">
+          Cancel anytime before the trial ends and you won't be charged. This preview is illustrative — Respira
+          has no real billing set up, so nothing is ever actually charged.
+        </p>
+        <button
+          onClick={onConfirm}
+          className="w-full rounded-2xl bg-gradient-to-r from-[#1F4D3A] to-[#2F6B4F] dark:from-[#0D2A1E] dark:to-[#123A29] text-white text-sm font-medium py-3 mb-2"
+        >
+          Confirm — Try free for 7 days
+        </button>
+        <button
+          onClick={onCancel}
+          className="w-full text-sm font-medium text-ink-600 dark:text-night-200 py-2"
+        >
+          Not now
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function PaywallView({ onBack }: PaywallViewProps) {
   const [plan, setPlan] = useState<Plan>('yearly')
   const [showNotice, setShowNotice] = useState(false)
+  const [showPreview, setShowPreview] = useState(false)
   const [page, setPage] = useState(0)
   const scrollerRef = useRef<HTMLDivElement>(null)
 
@@ -67,7 +135,7 @@ export default function PaywallView({ onBack }: PaywallViewProps) {
   }
 
   return (
-    <div className="flex flex-col min-h-full bg-white dark:bg-night-900">
+    <div className="relative flex flex-col min-h-full bg-white dark:bg-night-900">
       <div className="relative bg-gradient-to-b from-[#1F4D3A] to-[#173D2D] dark:from-[#0D2A1E] dark:to-[#0A2118] px-4 pt-4 pb-6">
         <button
           onClick={onBack}
@@ -180,7 +248,7 @@ export default function PaywallView({ onBack }: PaywallViewProps) {
         <p className="text-xs text-ink-600 dark:text-night-200 mb-4 text-center">7-day free trial, cancel anytime.</p>
 
         <button
-          onClick={() => setShowNotice(true)}
+          onClick={() => setShowPreview(true)}
           className="w-full rounded-2xl bg-gradient-to-r from-[#1F4D3A] to-[#2F6B4F] dark:from-[#0D2A1E] dark:to-[#123A29] text-white text-sm font-medium py-3.5"
         >
           Start free trial — {plan === 'monthly' ? 'Monthly' : 'Yearly'}
@@ -196,6 +264,17 @@ export default function PaywallView({ onBack }: PaywallViewProps) {
           Prices shown for illustration only.
         </p>
       </div>
+
+      {showPreview && (
+        <SubscriptionPreviewModal
+          plan={plan}
+          onCancel={() => setShowPreview(false)}
+          onConfirm={() => {
+            setShowPreview(false)
+            setShowNotice(true)
+          }}
+        />
+      )}
     </div>
   )
 }
