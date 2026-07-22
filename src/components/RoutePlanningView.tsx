@@ -137,6 +137,13 @@ function InfeasibleRouteNotice({ reason }: { reason: string }) {
  * error card, so a genuinely impossible trip reads differently from a
  * technical failure.
  *
+ * When OpenRouteService returns more than one route (see
+ * useRoutePlanning's routeOptions), a row of tappable option chips
+ * (Cleanest / Shortest / Balanced / Best) lets you compare trade-offs and
+ * switch which one the map + stats below describe — matching the
+ * reference app's route-comparison flow instead of only ever showing a
+ * single "the" route.
+ *
  * For real routes, the line itself is colored segment-by-segment using
  * the nearest real AQI reading at each point along the path (see
  * services/routeAir.ts) — a spatial picture of where air quality
@@ -156,6 +163,9 @@ export default function RoutePlanningView({ onBack, onUpgrade, aqiReadings }: Ro
     clearDestination,
     status,
     plan,
+    routeOptions,
+    selectedRouteIndex,
+    selectRoute,
     errorMessage,
     infeasibleReason,
     planCount,
@@ -278,6 +288,38 @@ export default function RoutePlanningView({ onBack, onUpgrade, aqiReadings }: Ro
                   the server. Distance shown is accurate (straight-line); duration is a rough pace estimate,
                   not real routing.
                 </p>
+              </div>
+            )}
+
+            {routeOptions.length > 1 && (
+              <div>
+                <p className="text-xs font-medium text-ink-900 dark:text-night-100 mb-1.5">
+                  {routeOptions.length} route options
+                </p>
+                <div className="flex gap-2 overflow-x-auto pb-1 -mx-0.5 px-0.5">
+                  {routeOptions.map((option, index) => {
+                    const selected = index === selectedRouteIndex
+                    return (
+                      <button
+                        key={index}
+                        onClick={() => selectRoute(index)}
+                        className={`shrink-0 text-left rounded-xl px-3 py-2 border ${
+                          selected
+                            ? 'border-[#1F4D3A] dark:border-[#8FC7A6] bg-[#1F4D3A]/10 dark:bg-[#8FC7A6]/10'
+                            : 'border-ink-200 dark:border-night-600'
+                        }`}
+                      >
+                        <p className="text-xs font-semibold text-ink-900 dark:text-night-100 m-0">
+                          {option.label ?? `Route ${index + 1}`}
+                        </p>
+                        <p className="text-[11px] text-ink-600 dark:text-night-200 m-0 mt-0.5">
+                          {formatDistance(option.route.distanceMeters)}
+                          {option.routeAvgAqi != null ? ` · AQI ${option.routeAvgAqi}` : ''}
+                        </p>
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
             )}
 
