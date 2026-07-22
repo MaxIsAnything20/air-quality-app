@@ -198,18 +198,6 @@ export default function HomeView({
           </button>
 
           <button
-            onClick={() => onNavigate('pollen')}
-            className="bg-ink-100 dark:bg-night-700 rounded-2xl p-3.5 text-left"
-          >
-            <div className="flex items-center justify-between">
-              <p className="text-xs text-ink-600 dark:text-night-200 m-0">Pollen</p>
-              <DiamondIcon />
-            </div>
-            <p className="text-sm font-medium text-ink-900 dark:text-night-100 m-0 mt-1">Premium</p>
-            <p className="text-[11px] text-ink-400 dark:text-night-400 m-0 mt-0.5">Tree, grass & weed</p>
-          </button>
-
-          <button
             onClick={() => onNavigate('paywall')}
             className="bg-ink-100 dark:bg-night-700 rounded-2xl p-3.5 text-left"
           >
