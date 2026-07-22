@@ -46,3 +46,21 @@ export const FIRST_ACTIVITY_BADGE = {
 export function hasEarnedFirstActivityBadge(activities: Activity[]): boolean {
   return activities.some((activity) => activity.status === 'completed')
 }
+
+/**
+ * A second real badge, tied to the Events backend (api/events.ts,
+ * services/events.ts) rather than local activity history — earned the
+ * first time this device checks in to any event it created or joined.
+ * Takes a loosely-typed array (just the one field it needs) instead of
+ * importing services/events.ts's MyEvent type, to keep this file's only
+ * dependency the shared Activity type.
+ */
+export const EVENT_CHECKIN_BADGE = {
+  id: 'event-checkin',
+  label: 'Event check-in',
+  description: 'Check in to your first event',
+}
+
+export function hasEarnedEventCheckinBadge(events: { checkedInAt: number | null }[]): boolean {
+  return events.some((event) => event.checkedInAt != null)
+}
