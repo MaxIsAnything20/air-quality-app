@@ -1,4 +1,4 @@
-import { ApiNotConfiguredError } from './apiError'
+import { ApiNotConfiguredError, RouteNotPossibleError } from './apiError'
 
 // Always our own `/api/routes` path — see api/routes.ts for why (the
 // OPENROUTESERVICE_API_KEY never reaches the client, same reasoning as
@@ -15,6 +15,19 @@ export interface RouteResult {
   coordinates: [number, number][]
   distanceMeters: number
   durationSeconds: number
+}
+
+// Best-effort keyword match against OpenRouteService's own error wording
+// for "these two points aren't connected by any road/trail I know about"
+// (e.g. one end is on an island, or the profile legally can't use the only
+// path between them) — see https://openrouteservice.org/dev/#/api-docs.
+// This isn't a guaranteed-exhaustive list of every ORS error code, so
+// anything that doesn't match still falls through to the generic error
+// path below instead of being misreported as "no route exists."
+const NO_ROUTE_KEYWORDS = ['routable', 'no route', 'unable to find a route', 'could not find']
+
+function isNoRouteMessage(message: unknown): boolean {
+  return typeof message === 'string' && NO_ROUTE_KEYWORDS.some((keyword) => message.toLowerCase().includes(keyword))
 }
 
 // ⚠️ Parses OpenRouteService's real GeoJSON directions response shape
@@ -42,13 +55,20 @@ export async function fetchRoute(
     throw new ApiNotConfiguredError(body?.error ?? 'OpenRouteService API key is not configured on the server.')
   }
   if (!res.ok) {
+    const body = await res.json().catch(() => null)
+    const message = body?.error?.message ?? body?.error
+    if (isNoRouteMessage(message)) {
+      throw new RouteNotPossibleError(
+        'No route exists between these two points for this activity — they may not be connected by any road or trail.'
+      )
+    }
     throw new Error(`Route request failed: ${res.status}`)
   }
 
   const data = await res.json()
   const feature = data?.features?.[0]
   if (!feature?.geometry?.coordinates?.length) {
-    throw new Error('OpenRouteService returned no usable route.')
+    throw new RouteNotPossibleError('No route exists between these two points for this activity.')
   }
 
   const coordinates: [number, number][] = feature.geometry.coordinates.map(
