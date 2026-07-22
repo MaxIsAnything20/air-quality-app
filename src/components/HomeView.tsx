@@ -171,7 +171,7 @@ export default function HomeView({
         <h2 className="text-xs font-medium tracking-wide text-ink-400 dark:text-night-400 mb-2">NOW</h2>
         <div className="grid grid-cols-2 gap-2.5 mb-5">
           <button
-            onClick={() => onNavigate('outdoorAir')}
+            onClick={() => onNavigate('forecast')}
             className="bg-ink-100 dark:bg-night-700 rounded-2xl p-3.5 text-left"
           >
             <p className="text-xs text-ink-600 dark:text-night-200 m-0">Outdoor air</p>
