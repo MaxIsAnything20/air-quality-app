@@ -1,5 +1,6 @@
 const tabs = [
   { id: 'map', label: 'Map' },
+  { id: 'activity', label: 'Activity' },
   { id: 'history', label: 'History' },
   { id: 'alerts', label: 'Alerts' },
   { id: 'profile', label: 'Profile' }
@@ -10,6 +11,12 @@ export type TabId = (typeof tabs)[number]['id']
 const icons: Record<TabId, JSX.Element> = {
   map: (
     <path d="M9 3 3 5.5v15L9 18l6 2.5 6-2.5v-15L15 5.5 9 3ZM9 3v15M15 5.5v15" />
+  ),
+  activity: (
+    <>
+      <circle cx="12" cy="13" r="8" />
+      <path d="M12 13V9M9 2h6" />
+    </>
   ),
   history: <path d="M3 12a9 9 0 1 0 3-6.7M3 12V6m0 6h6" />,
   alerts: <path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9ZM13.73 21a2 2 0 0 1-3.46 0" />,
