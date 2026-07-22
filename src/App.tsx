@@ -14,7 +14,6 @@ import ScreenHeader from './components/ScreenHeader'
 import MyActivitiesView from './components/MyActivitiesView'
 import GroupsView from './components/GroupsView'
 import IndoorAirView from './components/IndoorAirView'
-import PollenView from './components/PollenView'
 import EventsView from './components/EventsView'
 import SettingsView from './components/SettingsView'
 import SettingsProfileView from './components/SettingsProfileView'
@@ -25,7 +24,6 @@ import SettingsLocationsView from './components/SettingsLocationsView'
 import SettingsConnectionsView from './components/SettingsConnectionsView'
 import SettingsNotificationsView from './components/SettingsNotificationsView'
 import SettingsCommunicationView from './components/SettingsCommunicationView'
-import SettingsPollenPrefsView from './components/SettingsPollenPrefsView'
 import PaywallView from './components/PaywallView'
 import { useTheme } from './hooks/useTheme'
 import { useAirQuality } from './hooks/useAirQuality'
@@ -308,8 +306,6 @@ export default function App() {
           />
         )}
 
-        {screen === 'pollen' && <PollenView onBack={goBack} onUpgrade={() => navigateTo('paywall')} />}
-
         {screen === 'events' && <EventsView onBack={goBack} />}
 
         {screen === 'settings' && <SettingsView onBack={goBack} onNavigate={navigateTo} />}
@@ -341,8 +337,6 @@ export default function App() {
         )}
 
         {screen === 'settingsCommunication' && <SettingsCommunicationView onBack={goBack} />}
-
-        {screen === 'settingsPollenPrefs' && <SettingsPollenPrefsView onBack={goBack} />}
 
         {screen === 'paywall' && <PaywallView onBack={goBack} />}
 
