@@ -1,10 +1,17 @@
-# AirTrack
+# Respira
+
+*Track the air you actually breathe.*
 
 A mobile-first air quality / wildfire smoke tracker. Map-first layout,
 inspired by the "minimal, crisis-usable" pattern (see Watch Duty, Windy,
 IQAir for reference), built around: current conditions, a monthly
 cumulative-exposure view, threshold alerts, a saved health profile, and a
 plain-language AI summary.
+
+Currently shipping as a responsive web app (see "Roadmap" below) while a
+native mobile rebuild — the one that can actually do background activity
+tracking, Health/Strava sync, and route-based exposure scoring — is being
+built out separately.
 
 ## Stack
 - Vite + React + TypeScript
@@ -22,21 +29,6 @@ npm run dev
 
 Open the printed localhost URL. Resize your browser to phone width (or
 open dev tools device mode) to see it as the mobile shell.
-
-## Tests
-
-```bash
-npm test
-```
-
-Runs the Vitest suite (`vitest run`) over the app's pure-logic modules —
-the divergence detector, the EPA guidance/recommendation table, alert
-threshold and health profile persistence (including corrupt-`localStorage`
-fallback paths), and the time-slider tense/label helpers. `npm run
-test:watch` re-runs on change. Coverage is intentionally scoped to logic
-that's easy to get subtly wrong and hard to eyeball-check (distance math,
-threshold comparisons, tense/EPA-figure wording) rather than UI
-components — there's no component or end-to-end test coverage yet.
 
 ## Getting an AirNow API key
 
@@ -67,14 +59,8 @@ just shows sample sensor data with its own banner.
 
 Only needed for the AI-generated plain-language summary on the map tab.
 
-1. Go to https://aistudio.google.com/apikey and sign in with a Google account
-2. Click "Create API key" — no billing account required
-3. Paste it into `.env` as `GEMINI_API_KEY=your-key-here`
-
-Free tier (as of when this was written): 1,500 requests/day on Gemini's
-Flash models, no card needed, no expiration — plenty for one short summary
-per page load. Just don't enable billing on the Google Cloud project tied
-to the key, since that removes the free tier.
+1. Go to https://aistudio.google.com/apikey and create a key
+2. Paste it into `.env` as `GEMINI_API_KEY=your-key-here`
 
 Without it, the summary card still shows a sentence — just one built
 locally by a rule-based fallback instead of the model — and says so.
@@ -129,17 +115,6 @@ ship in browser-visible JS, none of them use it.
   value runs high in smoke. Filtered to a ~25km box around the current
   location — tighter than the fire feed's 300km, since the point of this
   layer is hyperlocal density, not wide coverage.
-- **Multi-source divergence detection** — real
-  (`src/services/divergence.ts` + `src/components/DivergenceBanner.tsx`).
-  Cross-checks nearby PurpleAir sensors against the nearest official
-  AirNow station and flags sensors reading notably worse (either two full
-  AQI categories worse, or a 50+ point AQI gap) — a signal that a
-  fast-developing local event (a new fire, a drifting smoke plume) hasn't
-  reached the hourly-updated official network yet. Deliberately
-  one-directional: official readings coming in worse than PurpleAir isn't
-  flagged, since that's usually just sensor noise or siting differences,
-  not a real divergence. Skipped on sample data for the same reason the
-  AI summary is.
 - **Monthly exposure history** — real, logged client-side
   (`src/services/historyLog.ts`) each time a live AirNow reading comes in.
   AirNow's historical endpoint only returns one day/reporting-area per
@@ -193,17 +168,17 @@ ship in browser-visible JS, none of them use it.
   The map says so explicitly (not silently blank) when you're on a layer
   or day that has no data for the current step. Slider only appears once
   there's actually more than one step to show.
-- **Alerts tab** — real, threshold-based notifications, in two modes.
-  Foreground alerts (`src/components/AlertsView.tsx` +
-  `src/hooks/useAlertNotifications.ts`) fire one browser Notification per
-  calendar day if the live AQI reaches your threshold while the app is
-  open in a tab. Background alerts are also real, not aspirational: a
-  service worker (`public/sw.js`) + Web Push subscription
-  (`src/services/pushSubscription.ts`) + Upstash Redis for subscription
-  storage + a GitHub Actions cron job (`.github/workflows/push-check.yml`,
-  every 15 minutes) hitting `/api/push/check` mean you can get a
-  notification even with the app fully closed. See `PUSH_SETUP.md` for
-  the setup/deploy details and required env vars.
+- **Divergence detection** — real, cross-checks official AirNow readings
+  against nearby PurpleAir sensors (`src/services/divergence.ts`) and
+  flags sensors reading notably worse than the nearest official station —
+  a signal official data (updated hourly) hasn't caught up to yet.
+  Skipped entirely on sample data.
+- **Alerts tab** — real, threshold-based browser notifications
+  (`src/components/AlertsView.tsx` + `src/hooks/useAlertNotifications.ts`).
+  Pick an AQI threshold, grant notification permission, and you'll get one
+  notification per calendar day if the live AQI reaches it. There's no
+  push server, so this only fires while the app is open in a tab (or
+  backgrounded, depending on the platform) — not a true background push.
 - **Profile tab** — real, a saved health profile
   (`src/components/ProfileView.tsx` + `src/services/profile.ts`):
   asthma, heart/lung disease, age, pregnancy, outdoor work. Stored in
@@ -215,6 +190,20 @@ ship in browser-visible JS, none of them use it.
   to become sensitive while a looser threshold is already saved. It never
   silently overwrites an explicit choice — only suggests.
 
+## Roadmap
+
+Respira's longer-term goal is feature parity with dedicated air-quality
+exposure trackers: a personal exposure score computed from your actual
+route and activity (not just a static location reading), foreground
+activity tracking, cleaner-route suggestions, and — once it moves to a
+real native shell (React Native + Expo) — background tracking and
+Apple Health / Google Health Connect / Strava sync. This web app is the
+free-tier-realistic slice of that: no signup, live local air quality,
+and (incrementally) foreground activity tracking, all running in a
+browser tab rather than requiring an app store install or a paid
+developer account. See open issues / project notes for the current
+build order.
+
 ## Structure
 
 ```
@@ -223,12 +212,12 @@ src/
     MapView.tsx          map + layer toggle (smoke/fires/AQI/PurpleAir) + working zoom/recenter
     MapLegend.tsx         collapsible legend, per-layer swatches + explanation (no cross-tab bleed)
     SearchBar.tsx         live place/ZIP search (Nominatim), debounced
-    ConditionBanner.tsx   single top-priority alert
-    DivergenceBanner.tsx  official-vs-citizen-sensor disagreement banner
-    StatStrip.tsx         current / monthly / forecast stat cards
-    SummaryCard.tsx        AI (or fallback) plain-language summary
+    AqiGauge.tsx           hero AQI dial + location name, Respira brand chrome
+    DivergenceBanner.tsx  flags AirNow/PurpleAir disagreement
+    StatStrip.tsx         monthly / forecast stat cards
+    SummaryCard.tsx        AI (or fallback) plain-language summary + pollutant badges
     HistoryView.tsx       month-to-date AQI chart + stats (real once logged, else sample)
-    AlertsView.tsx         threshold + notification-permission UI, background alert toggle
+    AlertsView.tsx         threshold + notification-permission UI
     ProfileView.tsx         saved health profile UI
     BottomNav.tsx          map / history / alerts / profile tabs
     ThemeToggle.tsx        light/dark switch
@@ -241,7 +230,7 @@ src/
     airnow.ts               AirNow API client (via /api/airnow)
     airnowTypes.ts           AirNow response types
     conditionAlert.ts        turns AQI + forecast into a plain-language alert
-    divergence.ts             AirNow-vs-PurpleAir disagreement detector
+    divergence.ts             AirNow vs. PurpleAir disagreement detection
     geolocation.ts           browser geolocation with fallback
     geocode.ts               Nominatim place/ZIP search
     purpleair.ts             PurpleAir sensor fetch (via /api/purpleair), EPA smoke correction
@@ -252,16 +241,12 @@ src/
     summary.ts                AI summary client (via /api/summary)
     alertSettings.ts          threshold + enabled state, persisted
     profile.ts                health profile + HEALTH_CONDITIONS, persisted
-    pushSubscription.ts        client-side Web Push subscribe/unsubscribe helpers
     apiError.ts                shared "server key not configured" error type
   data/mockData.ts         sample data used as a fallback everywhere above
   types.ts                 shared app types + AQI level helper + PM2.5-to-AQI conversion
 api/
   airnow.ts / purpleair.ts / summary.ts   serverless functions, keys attached server-side
   smoke.ts / fire.ts                       keyless NOAA proxies (CORS-avoidance only)
-  push/subscribe.ts / unsubscribe.ts / check.ts   background push subscription + delivery
-public/
-  sw.js                     service worker — receives and shows background push notifications
 ```
 
 ## Known limitations worth knowing about
@@ -306,23 +291,13 @@ public/
   location (`shiftToCenter()` in `useAirQuality.ts`) rather than always
   sitting near San Francisco where the mock data is anchored. Worth
   remembering if you add more mock readings later — same pattern applies.
-- **Background push notifications require their own setup and env vars.**
-  The service worker + Web Push + Redis + cron pipeline described above is
-  real and deployed, but only fires if `VAPID_PUBLIC_KEY`,
-  `VAPID_PRIVATE_KEY`, `VITE_VAPID_PUBLIC_KEY`, `VAPID_SUBJECT`,
-  `CRON_SECRET`, and the Upstash `KV_REST_API_URL`/`KV_REST_API_TOKEN`
-  vars are all configured (see `PUSH_SETUP.md`) — without them the
-  Alerts tab silently falls back to foreground-only notifications. The
-  Alerts tab also still links out to AirNow's own EnviroFlash email/text
-  alerts (`https://www.enviroflash.info/`) as a zero-setup alternative.
-- **There's no automated test coverage for React components or
-  end-to-end flows yet** — `npm test` (Vitest) covers the pure-logic
-  modules (divergence detection, AQI guidance, alert/profile persistence,
-  time-step formatting), not the UI layer.
-- **The Gemini model in `api/summary.ts` / `vite.config.ts` uses the
-  `gemini-flash-latest` alias**, not a version pinned to a specific
-  release, specifically so it keeps working as Google rotates which exact
-  model build is current — but re-verify at
-  <https://ai.google.dev/gemini-api/docs/models> if you're reading this a
-  while after this README was last touched, since Google periodically
-  changes which models (and aliases) are on the free tier.
+- **Alerts don't survive the tab closing.** True background push would
+  need a push subscription + a small server to send it — out of scope for
+  this scaffold. The Alerts tab now links out to AirNow's own EnviroFlash
+  email/text alerts (`https://www.enviroflash.info/`, verified as the
+  correct live signup) for anyone who wants notifications independent of
+  the browser tab being open — a real substitute, not a built feature.
+- **This is a web app, not a native mobile app.** No background location,
+  no HealthKit/Health Connect, no native push, no App Store presence.
+  Those all require the planned React Native + Expo rebuild — see
+  "Roadmap" above.
