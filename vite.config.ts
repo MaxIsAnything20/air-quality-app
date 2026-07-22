@@ -62,6 +62,45 @@ function apiKeyProxyPlugin(env: Record<string, string>): Plugin {
         }
       })
 
+      // Dev-server equivalent of api/routes.ts — see that file for why the
+      // key stays server-side and what the client falls back to when it's
+      // unset (a clearly-labeled sample route, not a silent failure).
+      server.middlewares.use('/api/routes', async (req, res) => {
+        const key = env.OPENROUTESERVICE_API_KEY
+        if (!key) {
+          res.statusCode = 501
+          res.setHeader('content-type', 'application/json')
+          res.end(
+            JSON.stringify({
+              error: 'Set OPENROUTESERVICE_API_KEY in .env (no VITE_ prefix) to enable real route planning in dev.'
+            })
+          )
+          return
+        }
+        const incoming = new URL(req.url ?? '', 'http://localhost')
+        const profile = incoming.searchParams.get('profile') || 'foot-walking'
+        const start = incoming.searchParams.get('start')
+        const end = incoming.searchParams.get('end')
+        if (!start || !end) {
+          res.statusCode = 400
+          res.setHeader('content-type', 'application/json')
+          res.end(JSON.stringify({ error: 'Expected "start" and "end" query params as "lng,lat".' }))
+          return
+        }
+        try {
+          const upstream = await fetch(
+            `https://api.openrouteservice.org/v2/directions/${encodeURIComponent(profile)}` +
+              `?api_key=${key}&start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`
+          )
+          res.statusCode = upstream.status
+          res.setHeader('content-type', upstream.headers.get('content-type') ?? 'application/json')
+          res.end(await upstream.text())
+        } catch {
+          res.statusCode = 502
+          res.end(JSON.stringify({ error: 'Could not reach OpenRouteService.' }))
+        }
+      })
+
       // Deliberately NOT sharing code with api/summary.ts via import: that
       // file is picked up by Vercel's build as an isolated serverless
       // function, and importing it here would ask Node to parse TS at dev-
