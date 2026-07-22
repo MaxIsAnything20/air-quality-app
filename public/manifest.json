@@ -1,11 +1,11 @@
 {
-  "name": "AirTrack",
-  "short_name": "AirTrack",
-  "description": "Live air quality and wildfire smoke tracker",
+  "name": "Respira",
+  "short_name": "Respira",
+  "description": "Track the air you actually breathe — live air quality and wildfire smoke tracker",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#0f172a",
+  "theme_color": "#0D2A1E",
   "icons": [
     { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
     { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" }
