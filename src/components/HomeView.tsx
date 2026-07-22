@@ -145,7 +145,7 @@ export default function HomeView({
           </div>
 
           <button
-            onClick={() => onNavigate('outdoorAir')}
+            onClick={() => onNavigate('forecast')}
             className="bg-white/15 rounded-xl px-3 py-2 text-right shrink-0"
           >
             <p className="text-[10px] text-white/70 m-0">CLEANEST TIME</p>
