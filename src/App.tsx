@@ -95,13 +95,15 @@ export default function App() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-ink-200 dark:bg-night-900 p-0 sm:p-6 transition-colors">
       <div className="w-full sm:max-w-[390px] sm:h-[780px] sm:rounded-[28px] sm:border sm:border-ink-400 dark:sm:border-night-500 overflow-hidden bg-white dark:bg-night-800 flex flex-col transition-colors">
-        {/* Blue chrome, modeled on AirNow's persistent blue top bar — stays
-            on every tab (not just the map) so the app has one consistent
-            branded frame, with the AqiGauge continuing this exact gradient
-            (see AqiGauge.tsx) into one seamless panel on the map tab. */}
-        <div className="flex items-center justify-between px-4 py-2.5 bg-gradient-to-b from-[#1C5D99] to-[#2E6DA4] dark:from-[#0A2238] dark:to-[#0F2A47]">
+        {/* Respira brand chrome — deep forest green, grounded in the
+            clean-air/plant-life idea behind the name, rather than a
+            borrowed reference palette. Stays on every tab (not just the
+            map) so the app has one consistent branded frame, with the
+            AqiGauge continuing this exact gradient (see AqiGauge.tsx)
+            into one seamless panel on the map tab. */}
+        <div className="flex items-center justify-between px-4 py-2.5 bg-gradient-to-b from-[#1F4D3A] to-[#2F6B4F] dark:from-[#0D2A1E] dark:to-[#123A29]">
           <span className="text-xs text-white/70">9:41</span>
-          <span className="text-sm font-semibold text-white tracking-wide">AirTrack</span>
+          <span className="text-sm font-semibold text-white tracking-wide">Respira</span>
           <div className="flex items-center gap-1">
             <ThemeToggle theme={theme} onToggle={toggleTheme} />
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="text-white/85">
@@ -159,7 +161,12 @@ export default function App() {
                 number in StatStrip below. It's the first thing after the
                 search bar, since it's the single fact this app exists to
                 answer. */}
-            <AqiGauge value={air.stats.currentAqi} level={air.alert.level} detail={air.alert.detail} />
+            <AqiGauge
+              value={air.stats.currentAqi}
+              level={air.alert.level}
+              detail={air.alert.detail}
+              location={air.locationLabel}
+            />
             <DivergenceBanner alerts={divergenceAlerts} />
 
             {/* One-line orientation for what the map underneath actually
