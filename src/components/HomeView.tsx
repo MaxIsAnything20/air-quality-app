@@ -202,7 +202,7 @@ export default function HomeView({
           </button>
 
           <button
-            onClick={() => onNavigate('paywall')}
+            onClick={() => onNavigate('routePlanning')}
             className="col-span-2 bg-ink-100 dark:bg-night-700 rounded-2xl p-3.5 text-left"
           >
             <p className="text-xs text-ink-600 dark:text-night-200 m-0">Routes</p>
