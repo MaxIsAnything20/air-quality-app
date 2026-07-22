@@ -4,7 +4,6 @@ const KEYS_TO_CLEAR = [
   'airtrack:alertSettings', // alertSettings.ts
   'respira.activities.v1', // activityLog.ts
   'respira.emailUpdates.v1', // SettingsCommunicationView.tsx
-  'respira.pollenPrefs.v1', // SettingsPollenPrefsView.tsx
 ]
 
 export function clearAllLocalData(): void {
