@@ -8,6 +8,15 @@ export type ScreenId =
   | 'pollen'
   | 'events'
   | 'settings'
+    | 'settingsProfile'
+    | 'settingsHealthProfile'
+    | 'settingsAutoTrack'
+    | 'settingsSensors'
+    | 'settingsLocations'
+    | 'settingsConnections'
+    | 'settingsNotifications'
+    | 'settingsCommunication'
+    | 'settingsPollenPrefs'
   | 'paywall'
 
 interface MenuItem {
