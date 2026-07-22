@@ -9,6 +9,8 @@ import {
   activityDurationMs,
   activityPeakAqi,
   deleteActivity,
+  trimActivity,
+  updateActivityType,
 } from '../services/activityLog'
 import { buildActivityFeedback } from '../services/activityFeedback'
 import type { ActivityTracking } from '../hooks/useActivityTracking'
@@ -202,20 +204,175 @@ function TypePicker({ onStart }: { onStart: (type: ActivityType) => void }) {
   )
 }
 
+/** Lets you reclassify a saved activity's type and trim GPS noise off the
+ * start/end of its recorded route — the editable-segment counterpart to
+ * the delete-only flow that existed before. Trimming previews the
+ * resulting distance/duration live (computed from the same pure
+ * activityDistanceMeters/activityDurationMs functions used everywhere
+ * else) before you commit anything to storage. */
+function EditActivityForm({
+  activity,
+  onCancel,
+  onSave,
+}: {
+  activity: Activity
+  onCancel: () => void
+  onSave: (updated: Activity) => void
+}) {
+  const [editType, setEditType] = useState<ActivityType>(activity.type)
+  const [trimStart, setTrimStart] = useState(0)
+  const [trimEnd, setTrimEnd] = useState(Math.max(0, activity.points.length - 1))
+
+  const canTrim = activity.points.length > 2
+  const previewPoints = activity.points.slice(trimStart, trimEnd + 1)
+  const previewDistance = activityDistanceMeters({ ...activity, points: previewPoints })
+  const previewDurationMs =
+    previewPoints.length >= 2 ? previewPoints[previewPoints.length - 1].timestamp - previewPoints[0].timestamp : 0
+  const trimmedCount = activity.points.length - previewPoints.length
+
+  function handleSave() {
+    let updated = activity
+    if (editType !== activity.type) {
+      updated = updateActivityType(activity.id, editType) ?? updated
+    }
+    if (canTrim && (trimStart > 0 || trimEnd < activity.points.length - 1)) {
+      updated = trimActivity(activity.id, trimStart, trimEnd) ?? updated
+    }
+    onSave(updated)
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-medium text-ink-900 dark:text-night-100 m-0">Edit activity</h2>
+        <button onClick={onCancel} className="text-xs text-ink-400 dark:text-night-400 underline">
+          Cancel
+        </button>
+      </div>
+
+      <div>
+        <p className="text-xs font-medium text-ink-900 dark:text-night-100 mb-1.5">Activity type</p>
+        <select
+          value={editType}
+          onChange={(e) => setEditType(e.target.value as ActivityType)}
+          className="w-full text-sm px-3 py-2.5 rounded-xl bg-ink-100 dark:bg-night-700 text-ink-900 dark:text-night-100"
+        >
+          {ACTIVITY_TYPE_GROUPS.map((group) => (
+            <optgroup key={group.label} label={group.label}>
+              {group.types.map((type) => (
+                <option key={type} value={type}>
+                  {ACTIVITY_TYPE_LABELS[type]}
+                </option>
+              ))}
+            </optgroup>
+          ))}
+        </select>
+      </div>
+
+      {canTrim ? (
+        <div className="space-y-3">
+          <p className="text-xs font-medium text-ink-900 dark:text-night-100 m-0">
+            Trim route
+            <span className="font-normal text-ink-400 dark:text-night-400">
+              {' '}
+              — crop out GPS drift at the start or end
+            </span>
+          </p>
+
+          <div>
+            <div className="flex items-center justify-between text-xs text-ink-600 dark:text-night-200 mb-1">
+              <span>Trim start</span>
+              <span>{trimStart} point{trimStart === 1 ? '' : 's'} removed</span>
+            </div>
+            <input
+              type="range"
+              min={0}
+              max={activity.points.length - 2}
+              value={trimStart}
+              onChange={(e) => {
+                const v = Number(e.target.value)
+                setTrimStart(v)
+                setTrimEnd((end) => Math.max(end, v + 1))
+              }}
+              className="w-full"
+            />
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between text-xs text-ink-600 dark:text-night-200 mb-1">
+              <span>Trim end</span>
+              <span>
+                {activity.points.length - 1 - trimEnd} point{activity.points.length - 1 - trimEnd === 1 ? '' : 's'}{' '}
+                removed
+              </span>
+            </div>
+            <input
+              type="range"
+              min={trimStart + 1}
+              max={activity.points.length - 1}
+              value={trimEnd}
+              onChange={(e) => setTrimEnd(Number(e.target.value))}
+              className="w-full"
+            />
+          </div>
+
+          <div className="bg-ink-100 dark:bg-night-700 rounded-xl px-3 py-2.5">
+            <p className="text-xs text-ink-600 dark:text-night-200 m-0">
+              {trimmedCount > 0
+                ? `Keeping ${previewPoints.length} of ${activity.points.length} GPS points`
+                : 'Full route kept'}
+            </p>
+            <p className="text-sm font-medium text-ink-900 dark:text-night-100 m-0 mt-1">
+              {formatDistance(previewDistance)} · {formatDuration(previewDurationMs)}
+            </p>
+          </div>
+        </div>
+      ) : (
+        <p className="text-xs text-ink-400 dark:text-night-400 m-0">
+          Not enough GPS points recorded to trim this route.
+        </p>
+      )}
+
+      <button
+        onClick={handleSave}
+        className="w-full py-3 rounded-xl bg-gradient-to-b from-[#1F4D3A] to-[#2F6B4F] dark:from-[#0D2A1E] dark:to-[#123A29] text-white text-sm font-medium"
+      >
+        Save changes
+      </button>
+    </div>
+  )
+}
+
 function ActivitySummary({
   activity,
   onClose,
   onDelete,
+  onUpdate,
 }: {
   activity: Activity
   onClose: () => void
   onDelete?: () => void
+  onUpdate?: (updated: Activity) => void
 }) {
+  const [editing, setEditing] = useState(false)
   const distance = activityDistanceMeters(activity)
   const duration = activityDurationMs(activity)
   const avgAqi = activityAverageAqi(activity)
   const peakAqi = activityPeakAqi(activity)
   const feedback = buildActivityFeedback(activity)
+
+  if (editing && onUpdate) {
+    return (
+      <EditActivityForm
+        activity={activity}
+        onCancel={() => setEditing(false)}
+        onSave={(updated) => {
+          setEditing(false)
+          onUpdate(updated)
+        }}
+      />
+    )
+  }
 
   return (
     <div className="space-y-4">
@@ -223,9 +380,19 @@ function ActivitySummary({
         <h2 className="text-sm font-medium text-ink-900 dark:text-night-100 m-0">
           {ACTIVITY_TYPE_LABELS[activity.type]}
         </h2>
-        <button onClick={onClose} className="text-xs text-ink-400 dark:text-night-400 underline">
-          Close
-        </button>
+        <div className="flex items-center gap-3">
+          {onUpdate && (
+            <button
+              onClick={() => setEditing(true)}
+              className="text-xs text-[#1F4D3A] dark:text-[#8FC7A6] underline"
+            >
+              Edit
+            </button>
+          )}
+          <button onClick={onClose} className="text-xs text-ink-400 dark:text-night-400 underline">
+            Close
+          </button>
+        </div>
       </div>
 
       <RouteMap activity={activity} />
@@ -365,6 +532,11 @@ export default function ActivityView({ tracking, currentAqi }: ActivityViewProps
             refreshHistory()
             setViewingActivity(null)
             setJustFinished(null)
+          }}
+          onUpdate={(updated) => {
+            refreshHistory()
+            if (viewingActivity) setViewingActivity(updated)
+            else setJustFinished(updated)
           }}
         />
       </div>
