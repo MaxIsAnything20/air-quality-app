@@ -34,11 +34,17 @@ const COUNTRY_CODES = 'us'
 // come back empty even though the building is very much on the map. Rather
 // than give up, searchPlaces retries once with the unit suffix stripped so
 // the real building still surfaces — never inventing a location, just not
-// letting a unit number the data source doesn't track hide a real address.
-const UNIT_SUFFIX_PATTERN = /[,\s]+(?:apt|apartment|unit|ste|suite|#)\.?\s*[\w-]+\s*$/i
+// letting a unit number hide a real, mappable address.
+//
+// The unit token doesn't always sit at the very end of the string — typed
+// addresses are usually "STREET UNIT, CITY, STATE", so city/state trails
+// after it. The pattern below matches the unit token wherever it appears
+// (not anchored to end-of-string) and removes just that piece, leaving the
+// surrounding street/city/state intact.
+const UNIT_SUFFIX_PATTERN = /[,\s]+(?:apt|apartment|unit|ste|suite|#)\.?\s*[\w-]+/gi
 
 function stripUnitSuffix(query: string): string | null {
-  const stripped = query.replace(UNIT_SUFFIX_PATTERN, '').trim()
+  const stripped = query.replace(UNIT_SUFFIX_PATTERN, '').replace(/\s+/g, ' ').trim()
   return stripped && stripped !== query ? stripped : null
 }
 
