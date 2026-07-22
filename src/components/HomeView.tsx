@@ -7,6 +7,8 @@ interface HomeViewProps {
   forecastPeakAqi: number | null
   locationLabel: string
   exposureScore: ExposureScoreResult | null
+  streak: number
+  badgeEarned: boolean
   onNavigate: (screen: ScreenId) => void
   onOpenMenu: () => void
 }
@@ -96,6 +98,8 @@ export default function HomeView({
   forecastPeakAqi,
   locationLabel,
   exposureScore,
+  streak,
+  badgeEarned,
   onNavigate,
   onOpenMenu
 }: HomeViewProps) {
@@ -257,14 +261,21 @@ export default function HomeView({
           </div>
         </button>
 
-        <div className="bg-ink-100 dark:bg-night-700 rounded-2xl p-4 mb-5">
+        <button
+          onClick={() => onNavigate('settingsProfile')}
+          className="w-full text-left bg-ink-100 dark:bg-night-700 rounded-2xl p-4 mb-5"
+        >
           <p className="text-sm font-medium text-ink-900 dark:text-night-100 m-0">Badges</p>
-          <p className="text-sm text-ink-900 dark:text-night-100 m-0 mt-1">Start earning</p>
-          <p className="text-[11px] text-ink-400 dark:text-night-400 m-0 mt-0.5">1 badge to unlock</p>
-          <p className="text-[11px] text-ink-400 dark:text-night-400 m-0 mt-1">
-            Check in and hit milestones to earn
+          <p className="text-sm text-ink-900 dark:text-night-100 m-0 mt-1">
+            {badgeEarned ? '1 badge earned' : 'Start earning'}
           </p>
-        </div>
+          <p className="text-[11px] text-ink-400 dark:text-night-400 m-0 mt-0.5">
+            {badgeEarned ? 'First activity — unlocked' : '1 badge to unlock'}
+          </p>
+          <p className="text-[11px] text-ink-400 dark:text-night-400 m-0 mt-1">
+            {streak > 0 ? `🔥 ${streak}-day streak` : 'Check in and hit milestones to earn'}
+          </p>
+        </button>
 
         <h2 className="text-xs font-medium tracking-wide text-ink-400 dark:text-night-400 mb-2">SETUP</h2>
         <div className="grid grid-cols-2 gap-2.5 mb-2.5">
