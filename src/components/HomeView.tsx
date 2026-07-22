@@ -1,5 +1,7 @@
+import { useMemo } from 'react'
 import { aqiToScore, scoreLabel } from '../types'
 import type { ExposureScoreResult } from '../services/exposureScore'
+import { buildEstimatedHourlySeries, findCleanestWindow, formatCleanestWindowLabel } from '../services/forecastCurve'
 import type { ScreenId } from './HamburgerMenu'
 
 interface HomeViewProps {
@@ -106,17 +108,18 @@ export default function HomeView({
   const outdoorScore = currentAqi != null ? aqiToScore(currentAqi) : null
   const outdoorLabel = outdoorScore != null ? scoreLabel(outdoorScore) : null
 
-  // A coarse, honest stand-in for the reference's specific "11am-1pm"
-  // clock range: we only have a current reading and a single forecast
-  // peak, not an hourly curve, so rather than invent precise hours we
-  // don't have data for, this just says whether now or later looks
-  // better based on the real numbers available.
-  let cleanestTimeLabel = 'Not available'
-  if (currentAqi != null && forecastPeakAqi != null) {
-    if (forecastPeakAqi > currentAqi + 5) cleanestTimeLabel = 'Now'
-    else if (forecastPeakAqi < currentAqi - 5) cleanestTimeLabel = 'Later today'
-    else cleanestTimeLabel = 'Steady today'
-  }
+  // The same estimated hourly curve shown on the forecast screen (see
+  // services/forecastCurve.ts) — anchored on the real current reading and
+  // today's real forecast peak — collapsed down to the single longest
+  // "Good or better" stretch of the day, e.g. "6 AM–7 PM", rather than
+  // the old three-way Now/Later/Steady guess. Purely a display label
+  // here (no navigation): see the chip below.
+  const cleanestTimeLabel = useMemo(() => {
+    if (currentAqi == null || forecastPeakAqi == null) return 'Not available'
+    const nowHour = new Date().getHours()
+    const series = buildEstimatedHourlySeries(currentAqi, forecastPeakAqi, nowHour)
+    return formatCleanestWindowLabel(findCleanestWindow(series))
+  }, [currentAqi, forecastPeakAqi])
 
   return (
     <div className="flex-1 overflow-y-auto">
@@ -144,18 +147,10 @@ export default function HomeView({
             {outdoorLabel && <p className="text-sm text-white/85 m-0 mt-1.5">{outdoorLabel}</p>}
           </div>
 
-          <button
-            onClick={() => onNavigate('forecast')}
-            className="bg-white/15 rounded-xl px-3 py-2 text-right shrink-0"
-          >
+          <div className="bg-white/15 rounded-xl px-3 py-2 text-right shrink-0">
             <p className="text-[10px] text-white/70 m-0">CLEANEST TIME</p>
-            <p className="text-sm font-medium text-white m-0 flex items-center gap-0.5">
-              {cleanestTimeLabel}
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
-                <path d="m9 6 6 6-6 6" />
-              </svg>
-            </p>
-          </button>
+            <p className="text-sm font-medium text-white m-0">{cleanestTimeLabel}</p>
+          </div>
         </div>
 
         <p className="flex items-center gap-1 text-xs text-white/75 mt-3 mb-0">
