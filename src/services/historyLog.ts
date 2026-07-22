@@ -26,6 +26,15 @@ function todayKey(): string {
   return `${y}-${m}-${day}`
 }
 
+function dateKeyDaysAgo(daysAgo: number): string {
+  const d = new Date()
+  d.setDate(d.getDate() - daysAgo)
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
 function loadAll(): StoredEntry[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
@@ -73,6 +82,20 @@ export function getMonthlyHistory(): DailyExposure[] {
   const monthPrefix = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
   return loadAll()
     .filter((e) => e.date.startsWith(monthPrefix))
+    .map((e) => ({ date: e.date, aqi: e.aqi, level: aqiLevelFromValue(e.aqi) }))
+}
+
+/**
+ * Real logged history for the last `days` calendar days including today,
+ * oldest first. Unlike getMonthlyHistory, this ignores calendar-month
+ * boundaries — used by the personal exposure score, where a rolling
+ * 7-day window near the start of a month shouldn't lose the last few
+ * days of the prior month.
+ */
+export function getRecentDailyHistory(days: number): DailyExposure[] {
+  const cutoffKey = dateKeyDaysAgo(Math.max(0, days - 1))
+  return loadAll()
+    .filter((e) => e.date >= cutoffKey)
     .map((e) => ({ date: e.date, aqi: e.aqi, level: aqiLevelFromValue(e.aqi) }))
 }
 
