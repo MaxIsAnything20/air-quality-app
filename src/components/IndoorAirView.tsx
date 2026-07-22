@@ -7,6 +7,9 @@ interface IndoorAirViewProps {
   /** Live outdoor AQI (null when there's no live reading — sample data or
    * not yet loaded), used to derive the indoor estimate below. */
   outdoorAqi: number | null
+  /** Routes to Settings > Sensors, the one canonical place sensor setup
+   * now lives, instead of duplicating that button here too. */
+  onManageSensors: () => void
 }
 
 type WindowState = 'closed' | 'open'
@@ -42,10 +45,9 @@ function scoreColor(score: number): string {
  * actually controls (windows, purifier) — not a substitute for a real
  * sensor, but real information instead of an empty box.
  */
-export default function IndoorAirView({ onBack, outdoorAqi }: IndoorAirViewProps) {
+export default function IndoorAirView({ onBack, outdoorAqi, onManageSensors }: IndoorAirViewProps) {
   const [windows, setWindows] = useState<WindowState>('closed')
   const [purifier, setPurifier] = useState<PurifierState>('off')
-  const [tappedSetup, setTappedSetup] = useState(false)
 
   const estimate = useMemo(() => {
     if (outdoorAqi == null) return null
@@ -157,25 +159,16 @@ export default function IndoorAirView({ onBack, outdoorAqi }: IndoorAirViewProps
           </p>
         </div>
 
-        <div className="rounded-2xl border border-ink-200 dark:border-night-600 p-4">
+        <button
+          onClick={onManageSensors}
+          className="w-full rounded-2xl border border-ink-200 dark:border-night-600 p-4 text-left"
+        >
           <p className="text-sm font-medium text-ink-900 dark:text-night-100 mb-1">Connect a real sensor</p>
-          <p className="text-xs text-ink-400 dark:text-night-400 mb-3">
-            Pair an indoor air monitor for live per-room readings instead of the estimate above. This is a
-            Premium feature and isn't connected to any real device yet.
+          <p className="text-xs text-ink-400 dark:text-night-400 m-0">
+            Pair an indoor air monitor for live per-room readings instead of the estimate above. Manage
+            sensors in Settings.
           </p>
-          {tappedSetup ? (
-            <p className="text-xs text-ink-400 dark:text-night-400 m-0">
-              Sensor setup isn't available yet — this needs a connected hardware sensor to pair with.
-            </p>
-          ) : (
-            <button
-              onClick={() => setTappedSetup(true)}
-              className="px-5 py-2.5 rounded-full text-sm font-medium text-white bg-[#D9922B]"
-            >
-              Set up a sensor
-            </button>
-          )}
-        </div>
+        </button>
       </div>
     </div>
   )
