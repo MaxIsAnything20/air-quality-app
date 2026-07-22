@@ -15,6 +15,7 @@ import MyActivitiesView from './components/MyActivitiesView'
 import GroupsView from './components/GroupsView'
 import IndoorAirView from './components/IndoorAirView'
 import EventsView from './components/EventsView'
+import RoutePlanningView from './components/RoutePlanningView'
 import SettingsView from './components/SettingsView'
 import SettingsProfileView from './components/SettingsProfileView'
 import SettingsHealthProfileView from './components/SettingsHealthProfileView'
@@ -322,6 +323,14 @@ export default function App() {
         )}
 
         {screen === 'events' && <EventsView onBack={goBack} />}
+
+        {screen === 'routePlanning' && (
+          <RoutePlanningView
+            onBack={goBack}
+            onUpgrade={() => navigateTo('paywall')}
+            aqiReadings={air.aqiReadings}
+          />
+        )}
 
         {screen === 'settings' && <SettingsView onBack={goBack} onNavigate={navigateTo} />}
 
