@@ -57,12 +57,6 @@ const ROWS: SettingsRow[] = [
     icon: <path d="M4 4h16v16H4V4Zm0 0 8 8 8-8" />,
   },
   {
-    id: 'settingsPollenPrefs',
-    label: 'Pollen preferences',
-    description: 'Tell us which pollens affect you',
-    icon: <path d="M12 2C9 5 9 8 12 11c3-3 3-6 0-9ZM12 13c-3 3-3 6 0 9 3-3 3-6 0-9ZM2 12c3-3 6-3 9 0-3 3-6 3-9 0ZM13 12c3-3 6-3 9 0-3 3-6 3-9 0Z" />,
-  },
-  {
     id: 'settingsHealthProfile',
     label: 'Health profile',
     description: 'Conditions that affect your risk',
