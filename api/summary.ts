@@ -7,6 +7,15 @@
 // src/hooks/useSummary.ts — same "never just breaks" pattern as the rest
 // of the app.
 //
+// Also backs the per-activity "AirCoach" insight (src/services/activityInsight.ts)
+// via the same endpoint, gated on `mode: 'activity'` in the request body —
+// reuses the same Gemini call/API key/free-tier budget rather than adding
+// a second serverless function, since Vercel's Hobby plan caps functions
+// per deployment. If that request fails for any reason, the client falls
+// back to the deterministic src/services/activityFeedback.ts sentence,
+// which is always shown regardless — the AI insight is a bonus on top,
+// never the only feedback shown for an activity.
+//
 // The recommendation itself is grounded in EPA/AirNow's published
 // cautionary statements and activity guidance (see
 // src/services/aqiGuidance.ts) rather than left for the model to invent —
@@ -32,6 +41,7 @@
 // testing — this is a short, low-stakes summary task with no need for
 // extended reasoning.
 interface SummaryRequestBody {
+  mode?: 'conditions' | 'activity'
   aqi: number
   level: string
   forecastPeakAqi: number
@@ -44,6 +54,13 @@ interface SummaryRequestBody {
    *  slider step a region reading came from — determines whether the
    *  prompt says "is currently," "is forecast to be," or "was." */
   timeContext?: string | null
+  // --- activity-mode fields (mode: 'activity') ---
+  activityType?: string
+  avgAqi?: number | null
+  avgLevel?: string | null
+  peakAqi?: number | null
+  distanceKm?: number
+  durationMinutes?: number
 }
 
 // Same "duplicated, not imported" reasoning as AQI_GUIDANCE below — this
@@ -79,6 +96,41 @@ const AQI_GUIDANCE: Record<AqiLevel, AqiGuidanceEntry> = {
   hazardous: { generalAdvice: 'everyone should avoid all outdoor physical activity', sensitiveAdvice: 'sensitive groups should remain indoors', generalMaxMinutes: 0, sensitiveMaxMinutes: 0 }
 }
 
+/** Shared Gemini call for both conditions-mode and activity-mode prompts —
+ *  same model, same generation config, same response-shape handling.
+ *  Throws with a descriptive message on any failure; callers translate
+ *  that into the appropriate HTTP status. */
+async function callGemini(prompt: string, apiKey: string): Promise<string> {
+  const upstream = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { maxOutputTokens: 300, thinkingConfig: { thinkingBudget: 0 } }
+      })
+    }
+  )
+
+  if (!upstream.ok) {
+    throw new Error(`Gemini API request failed: ${upstream.status}`)
+  }
+
+  const data = await upstream.json()
+  const text = (data.candidates ?? [])
+    .flatMap((c: { content?: { parts?: { text?: string }[] } }) => c.content?.parts ?? [])
+    .map((part: { text?: string }) => part.text ?? '')
+    .filter(Boolean)
+    .join(' ')
+    .trim()
+
+  if (!text) {
+    throw new Error('Gemini API returned no text.')
+  }
+  return text
+}
+
 export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'Method not allowed' })
@@ -93,6 +145,42 @@ export default async function handler(req: any, res: any) {
 
   const body: Partial<SummaryRequestBody> =
     typeof req.body === 'string' ? JSON.parse(req.body || '{}') : req.body ?? {}
+
+  if (body.mode === 'activity') {
+    const { activityType, avgAqi, avgLevel, peakAqi, distanceKm, durationMinutes } = body
+
+    if (typeof durationMinutes !== 'number') {
+      res.status(400).json({ error: 'Expected { mode: "activity", durationMinutes, ... } in the request body.' })
+      return
+    }
+
+    const guidance = avgLevel ? AQI_GUIDANCE[avgLevel as AqiLevel] : null
+    const distancePart =
+      typeof distanceKm === 'number' && distanceKm >= 0.1 ? `${distanceKm.toFixed(distanceKm < 10 ? 2 : 1)} km` : null
+    const durationPart = `${Math.round(durationMinutes)} minutes`
+
+    const prompt = [
+      `The person just finished a logged "${activityType ?? 'outdoor'}" activity lasting ${durationPart}${distancePart ? ` over ${distancePart}` : ''}.`,
+      typeof avgAqi === 'number'
+        ? `Their average air quality exposure during the activity was ${avgAqi} AQI (${avgLevel}).`
+        : 'No air quality readings were available along their route, so exposure could not be estimated.',
+      typeof peakAqi === 'number' && peakAqi !== avgAqi ? `The worst moment along the route reached ${peakAqi} AQI.` : '',
+      guidance ? `EPA/AirNow's actual published cautionary guidance for this category: ${guidance.generalAdvice}.` : '',
+      'Write two short, plain-language, encouraging AirCoach-style sentences: one reflecting on how this specific activity went from an air-quality standpoint, and one practical, forward-looking tip for their next similar session, based ONLY on the guidance and numbers given above.',
+      'Do not invent additional figures, locations, or timeframes. Do not state or imply any duration figure came from EPA.'
+    ]
+      .filter(Boolean)
+      .join(' ')
+
+    try {
+      const text = await callGemini(prompt, apiKey)
+      res.status(200).json({ summary: text })
+    } catch (err) {
+      res.status(502).json({ error: err instanceof Error ? err.message : 'Could not reach the Gemini API.' })
+    }
+    return
+  }
+
   const { aqi, level, forecastPeakAqi, sensitiveGroup, stationName, pollutant, pollutantBreakdown, hasForecast, timeContext } = body
 
   if (typeof aqi !== 'number' || typeof forecastPeakAqi !== 'number' || !level) {
@@ -126,8 +214,8 @@ export default async function handler(req: any, res: any) {
     hasForecast === false
       ? "No forecast is available for this specific station — don't state or imply one."
       : isPastOrFuture
-        ? '' // Forecast peak AQI would be misleading noise next to an already-past or already-forecast reading — omit it.
-        : `Forecast peak AQI is ${forecastPeakAqi}.`,
+      ? '' // Forecast peak AQI would be misleading noise next to an already-past or already-forecast reading — omit it.
+      : `Forecast peak AQI is ${forecastPeakAqi}.`,
     sensitiveGroup ? 'The person has indicated they are in an AQI-sensitive group.' : '',
     `EPA/AirNow's actual published cautionary guidance for this category: ${advice}.`,
     timeGuidance ? `Separately, ${timeGuidance} — present this as a rough rule of thumb, explicitly NOT as an EPA number, if you mention it at all.` : '',
@@ -141,38 +229,9 @@ export default async function handler(req: any, res: any) {
     .join(' ')
 
   try {
-    const upstream = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { maxOutputTokens: 300, thinkingConfig: { thinkingBudget: 0 } }
-        })
-      }
-    )
-
-    if (!upstream.ok) {
-      res.status(502).json({ error: `Gemini API request failed: ${upstream.status}` })
-      return
-    }
-
-    const data = await upstream.json()
-    const text = (data.candidates ?? [])
-      .flatMap((c: { content?: { parts?: { text?: string }[] } }) => c.content?.parts ?? [])
-      .map((part: { text?: string }) => part.text ?? '')
-      .filter(Boolean)
-      .join(' ')
-      .trim()
-
-    if (!text) {
-      res.status(502).json({ error: 'Gemini API returned no text.' })
-      return
-    }
-
+    const text = await callGemini(prompt, apiKey)
     res.status(200).json({ summary: text })
   } catch (err) {
-    res.status(502).json({ error: 'Could not reach the Gemini API.' })
+    res.status(502).json({ error: err instanceof Error ? err.message : 'Could not reach the Gemini API.' })
   }
 }
