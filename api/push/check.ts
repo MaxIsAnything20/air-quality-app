@@ -39,6 +39,42 @@ async function fetchWorstAqi(lat: number, lng: number, apiKey: string): Promise<
   return observations.reduce((worst, o) => (o.AQI > worst ? o.AQI : worst), 0)
 }
 
+// Standard EPA AQI category breakpoints — kept in sync by hand with
+// src/services/aqiGuidance.ts's AqiLevel keys (same "duplicated, not
+// imported" reasoning as the rest of this standalone serverless bundle).
+type AqiLevel = 'good' | 'moderate' | 'sensitive' | 'unhealthy' | 'veryunhealthy' | 'hazardous'
+
+function levelForAqi(aqi: number): AqiLevel {
+  if (aqi <= 50) return 'good'
+  if (aqi <= 100) return 'moderate'
+  if (aqi <= 150) return 'sensitive'
+  if (aqi <= 200) return 'unhealthy'
+  if (aqi <= 300) return 'veryunhealthy'
+  return 'hazardous'
+}
+
+const LEVEL_LABEL: Record<AqiLevel, string> = {
+  good: 'Good',
+  moderate: 'Moderate',
+  sensitive: 'Unhealthy for Sensitive Groups',
+  unhealthy: 'Unhealthy',
+  veryunhealthy: 'Very Unhealthy',
+  hazardous: 'Hazardous'
+}
+
+// Same general-public guidance as src/services/aqiGuidance.ts's
+// AQI_GUIDANCE.generalAdvice, condensed for a short push notification body
+// (this endpoint has no per-subscriber sensitive-group flag to key off
+// of, so it always uses the general-public line, not the sensitive one).
+const GENERAL_ADVICE: Record<AqiLevel, string> = {
+  good: 'a good day for any outdoor activity.',
+  moderate: 'acceptable for most people and most outdoor activity.',
+  sensitive: 'most people are fine, but sensitive groups should reduce prolonged exertion.',
+  unhealthy: 'everyone should reduce prolonged or heavy outdoor exertion.',
+  veryunhealthy: 'everyone should avoid prolonged or heavy outdoor exertion.',
+  hazardous: 'everyone should avoid all outdoor physical activity.'
+}
+
 interface SubscriptionRecord {
   subscription: { endpoint: string; keys: { p256dh: string; auth: string } }
   lat: number
@@ -90,12 +126,14 @@ export default async function handler(req: any, res: any) {
     if (aqi === null || aqi < record.thresholdAqi) continue
     if (record.lastNotifiedDate === today) continue
 
+    const level = levelForAqi(aqi)
+
     try {
       await webpush.sendNotification(
         record.subscription as any,
         JSON.stringify({
-          title: 'Air quality alert',
-          body: `Current AQI is ${aqi}, at or above your ${record.thresholdAqi} threshold.`,
+          title: `Air quality alert — ${LEVEL_LABEL[level]}`,
+          body: `Current AQI is ${aqi} (${LEVEL_LABEL[level]}), at or above your ${record.thresholdAqi} threshold — ${GENERAL_ADVICE[level]}`,
           url: '/'
         })
       )
