@@ -28,12 +28,11 @@ interface BottomNavProps {
 
 export default function BottomNav({ active, onChange, badges }: BottomNavProps) {
   return (
-    // Blue bar matches the header (see App.tsx) so the app's chrome reads
-    // as one consistent branded frame top and bottom, with the neutral
-    // light/dark content sandwiched in between — mirrors AirNow's own
-    // persistent blue tab bar rather than the plain transparent strip
-    // this used to be.
-    <div className="flex justify-around py-2 bg-gradient-to-b from-[#1C5D99] to-[#164A7D] dark:from-[#0A2238] dark:to-[#081C30]">
+    // Green bar matches the header (see App.tsx) so the app's chrome
+    // reads as one consistent branded frame top and bottom, with the
+    // neutral light/dark content sandwiched in between — Respira's own
+    // persistent tab bar rather than a plain transparent strip.
+    <div className="flex justify-around py-2 bg-gradient-to-b from-[#1F4D3A] to-[#173D2D] dark:from-[#0D2A1E] dark:to-[#0A2118]">
       {tabs.map((tab) => (
         <button
           key={tab.id}
@@ -47,7 +46,7 @@ export default function BottomNav({ active, onChange, badges }: BottomNavProps) 
               {icons[tab.id]}
             </svg>
             {badges?.[tab.id] && (
-              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-aqi-unhealthy ring-2 ring-[#1C5D99] dark:ring-[#0A2238]" />
+              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-aqi-unhealthy ring-2 ring-[#1F4D3A] dark:ring-[#0D2A1E]" />
             )}
           </span>
           <span className="text-[10px]">{tab.label}</span>
