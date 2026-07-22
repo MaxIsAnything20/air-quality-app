@@ -53,10 +53,10 @@ export default function AqiGauge({
   // current reading. Shown as the gauge's caption so that context isn't
   // lost now that the gauge has absorbed ConditionBanner's role.
   detail?: string | null
-  // "Reporting Area, State" — shown as its own bold line on the blue field,
-  // the way AirNow always names the place a reading is for right under its
-  // dial. Optional only so the component doesn't hard-fail if a caller
-  // hasn't got one yet; App.tsx always has one (real station or the sample
+  // "Reporting Area, State" — shown as its own bold line on the green
+  // field, naming the place a reading is for right under its dial.
+  // Optional only so the component doesn't hard-fail if a caller hasn't
+  // got one yet; App.tsx always has one (real station or the sample
   // fallback's "San Francisco, CA").
   location?: string | null
 }) {
@@ -64,14 +64,14 @@ export default function AqiGauge({
   const color = aqiColor[level]
 
   return (
-    // Blue gradient hero (continues the header's blue from App.tsx into
-    // one seamless panel) — modeled on AirNow's own home screen, where the
-    // dial sits on a bold blue field rather than blending into the page.
-    // The readout below the dial gets its own light card instead of
-    // sitting directly on the blue, since AQI category colors (especially
-    // the darker hazardous maroon) can't be guaranteed to stay legible
-    // against every shade of blue — a light card sidesteps that entirely.
-    <div className="bg-gradient-to-b from-[#2E6DA4] to-[#4A9FD8] dark:from-[#0F2A47] dark:to-[#123A5E] flex flex-col items-center px-4 pt-1 pb-5 rounded-b-[28px]">
+    // Respira brand gradient (continues the header's green from App.tsx
+    // into one seamless panel) — the dial sits on a bold green field
+    // rather than blending into the page. The readout below the dial
+    // gets its own light card instead of sitting directly on the green,
+    // since AQI category colors (especially the darker hazardous maroon)
+    // can't be guaranteed to stay legible against every shade of green —
+    // a light card sidesteps that entirely.
+    <div className="bg-gradient-to-b from-[#1F4D3A] to-[#3C8562] dark:from-[#0D2A1E] dark:to-[#123A29] flex flex-col items-center px-4 pt-1 pb-5 rounded-b-[28px]">
       <svg width="220" height="128" viewBox="0 0 240 140" className="overflow-visible">
         {SEGMENTS.map((seg) => (
           <path
@@ -118,11 +118,11 @@ export default function AqiGauge({
         )}
       </div>
 
-      {/* Bold, on-the-blue location name — AirNow's own home screen names
-          the place ("Raleigh, NC") in large white text right under the
-          dial, separate from the smaller category/detail text above.
-          Placed outside the light card so it reads as chrome/context
-          rather than another data point on the readout. */}
+      {/* Bold, on-the-green location name — names the place ("Raleigh,
+          NC") in large white text right under the dial, separate from
+          the smaller category/detail text above. Placed outside the
+          light card so it reads as chrome/context rather than another
+          data point on the readout. */}
       {location && <p className="text-white font-semibold text-base tracking-wide m-0 mt-3">{location}</p>}
     </div>
   )
