@@ -99,6 +99,14 @@ export function getRecentDailyHistory(days: number): DailyExposure[] {
     .map((e) => ({ date: e.date, aqi: e.aqi, level: aqiLevelFromValue(e.aqi) }))
 }
 
+/** The logged ambient reading for one specific calendar date (YYYY-MM-DD),
+ * or null if that day was never logged — used by the "My activities"
+ * per-day score view. */
+export function getDailyEntry(dateKey: string): DailyExposure | null {
+  const entry = loadAll().find((e) => e.date === dateKey)
+  return entry ? { date: entry.date, aqi: entry.aqi, level: aqiLevelFromValue(entry.aqi) } : null
+}
+
 /** Count of logged days this month at "Unhealthy" (AQI 151+) or worse. */
 export function getDaysUnhealthyThisMonth(): number {
   return getMonthlyHistory().filter((d) => d.aqi > 150).length
