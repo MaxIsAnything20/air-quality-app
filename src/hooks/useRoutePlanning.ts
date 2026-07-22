@@ -247,7 +247,10 @@ export function useRoutePlanning(aqiReadings: AqiReading[]) {
     errorMessage,
     infeasibleReason,
     planCount,
-    freeLimitReached: planCount >= FREE_ROUTE_PLAN_LIMIT,
+    // Derived from hasFreeRoutePlansRemaining() (not a raw count
+    // comparison) so this automatically respects the temporary
+    // UNLIMITED_ROUTE_PLANS override in services/routePlans.ts too.
+    freeLimitReached: !hasFreeRoutePlansRemaining(),
     canPlan: origin != null && destination != null,
     planRoute,
     reset,
