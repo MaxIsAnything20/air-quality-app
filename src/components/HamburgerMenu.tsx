@@ -1,22 +1,20 @@
 export type ScreenId =
   | 'home'
   | 'activity'
-    | 'outdoorAir'
+  | 'outdoorAir'
   | 'myActivities'
   | 'groups'
   | 'indoorAir'
-  | 'pollen'
   | 'events'
   | 'settings'
-    | 'settingsProfile'
-    | 'settingsHealthProfile'
-    | 'settingsAutoTrack'
-    | 'settingsSensors'
-    | 'settingsLocations'
-    | 'settingsConnections'
-    | 'settingsNotifications'
-    | 'settingsCommunication'
-    | 'settingsPollenPrefs'
+  | 'settingsProfile'
+  | 'settingsHealthProfile'
+  | 'settingsAutoTrack'
+  | 'settingsSensors'
+  | 'settingsLocations'
+  | 'settingsConnections'
+  | 'settingsNotifications'
+  | 'settingsCommunication'
   | 'paywall'
 
 interface MenuItem {
@@ -42,13 +40,6 @@ const MENU_ITEMS: MenuItem[] = [
     id: 'indoorAir',
     label: 'Indoor air',
     icon: <path d="M3 9.5 12 3l9 6.5V21a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1V9.5Z" />
-  },
-  {
-    id: 'pollen',
-    label: 'Pollen',
-    icon: (
-      <path d="M12 2C9 5 9 8 12 11c3-3 3-6 0-9ZM12 13c-3 3-3 6 0 9 3-3 3-6 0-9ZM2 12c3-3 6-3 9 0-3 3-6 3-9 0ZM13 12c3-3 6-3 9 0-3 3-6 3-9 0Z" />
-    )
   },
   {
     id: 'events',
