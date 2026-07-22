@@ -199,7 +199,7 @@ export default function HomeView({
 
           <button
             onClick={() => onNavigate('paywall')}
-            className="bg-ink-100 dark:bg-night-700 rounded-2xl p-3.5 text-left"
+            className="col-span-2 bg-ink-100 dark:bg-night-700 rounded-2xl p-3.5 text-left"
           >
             <p className="text-xs text-ink-600 dark:text-night-200 m-0">Routes</p>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1F4D3A" strokeWidth="1.8" className="dark:stroke-[#8FC7A6] mt-1">
