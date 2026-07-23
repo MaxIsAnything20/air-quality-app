@@ -10,6 +10,53 @@ const BASE_URL = '/api/routes'
 
 export type RouteProfile = 'foot-walking' | 'cycling-regular'
 
+// Human-facing maneuver vocabulary this app understands — see
+// src/services/navigationInstructions.ts for how these map to spoken/
+// written instructions and icons. Kept as the union OSRM actually sends
+// (https://project-osrm.org/docs/v5.24.0/api/#stepmaneuver-object) rather
+// than a narrower app-specific set, so nothing gets silently dropped.
+export type ManeuverType =
+  | 'turn'
+  | 'new name'
+  | 'depart'
+  | 'arrive'
+  | 'merge'
+  | 'on ramp'
+  | 'off ramp'
+  | 'fork'
+  | 'end of road'
+  | 'use lane'
+  | 'continue'
+  | 'roundabout'
+  | 'rotary'
+  | 'roundabout turn'
+  | 'notification'
+  | 'exit roundabout'
+  | 'exit rotary'
+
+export type ManeuverModifier =
+  | 'uturn'
+  | 'sharp right'
+  | 'right'
+  | 'slight right'
+  | 'straight'
+  | 'slight left'
+  | 'left'
+  | 'sharp left'
+
+export interface NavigationStep {
+  /** [lat, lng] of this step's maneuver point — same [lat, lng] convention
+   * as RouteResult.coordinates, converted from OSRM's [lng, lat]. */
+  location: [number, number]
+  distanceMeters: number
+  durationSeconds: number
+  /** Real OSM way name for this step, when OSM has one — often blank for
+   * unnamed footpaths/trails, never invented when missing. */
+  streetName: string
+  maneuverType: ManeuverType
+  maneuverModifier: ManeuverModifier | null
+}
+
 export interface RouteResult {
   /** [lat, lng] pairs, in path order — note this is the opposite order
    * from OSRM's own GeoJSON (which is [lng, lat]); converted once here so
@@ -18,6 +65,26 @@ export interface RouteResult {
   coordinates: [number, number][]
   distanceMeters: number
   durationSeconds: number
+  /** Real turn-by-turn maneuvers from OSRM (steps: 'true' — see
+   * api/routes.ts), in path order. Empty when OSRM's response has no leg
+   * steps for some reason — callers should treat that as "no navigation
+   * available" rather than assuming it's always populated. */
+  steps: NavigationStep[]
+}
+
+function parseSteps(route: any): NavigationStep[] {
+  const legSteps = route.legs?.[0]?.steps ?? []
+  return legSteps.map((step: any) => {
+    const loc = step.maneuver?.location
+    return {
+      location: (loc ? [loc[1], loc[0]] : [0, 0]) as [number, number],
+      distanceMeters: step.distance ?? 0,
+      durationSeconds: step.duration ?? 0,
+      streetName: step.name || '',
+      maneuverType: (step.maneuver?.type ?? 'turn') as ManeuverType,
+      maneuverModifier: (step.maneuver?.modifier ?? null) as ManeuverModifier | null
+    }
+  })
 }
 
 function parseRoute(route: any): RouteResult {
@@ -27,7 +94,8 @@ function parseRoute(route: any): RouteResult {
   return {
     coordinates,
     distanceMeters: route.distance ?? 0,
-    durationSeconds: route.duration ?? 0
+    durationSeconds: route.duration ?? 0,
+    steps: parseSteps(route)
   }
 }
 
@@ -69,8 +137,9 @@ async function requestDirections(
 
 /** Parses OSRM's real route response shape (routes[0].geometry.coordinates
  * as [lng,lat][], routes[0].{distance,duration} directly on the route
- * object) per the OSRM HTTP API docs — verified against the live public
- * demo server (router.project-osrm.org) before this was written. */
+ * object, routes[0].legs[0].steps for turn-by-turn) per the OSRM HTTP API
+ * docs — verified against the live public demo server
+ * (router.project-osrm.org) before this was written. */
 export async function fetchRoute(
   start: { lat: number; lng: number },
   end: { lat: number; lng: number },
