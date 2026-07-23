@@ -18,6 +18,7 @@ export type ScreenId =
   | 'settingsNotifications'
   | 'settingsCommunication'
   | 'paywall'
+  | 'navigation'
 
 interface MenuItem {
   id: ScreenId
