@@ -44,8 +44,13 @@ export default async function handler(req: any, res: any) {
   try {
     // OSRM takes coordinates as "lng,lat;lng,lat" directly in the path —
     // start/end already arrive in that "lng,lat" shape from
-    // src/services/routes.ts, so they're passed straight through.
-    const params = new URLSearchParams({ overview: 'full', geometries: 'geojson' })
+    // src/services/routes.ts, so they're passed straight through. steps:
+    // 'true' additionally asks OSRM for turn-by-turn maneuver instructions
+    // per leg (see src/services/routes.ts's NavigationStep parsing) — a
+    // small extra payload, always requested rather than gated behind a
+    // second query param, since route planning already needs every other
+    // field in the same response.
+    const params = new URLSearchParams({ overview: 'full', geometries: 'geojson', steps: 'true' })
     if (wantAlternatives) params.set('alternatives', 'true')
 
     const upstream = await fetch(`${OSRM_BASE_URL}/${profile}/${start};${end}?${params}`)
