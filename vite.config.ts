@@ -80,7 +80,10 @@ function apiKeyProxyPlugin(env: Record<string, string>): Plugin {
           return
         }
         try {
-          const params = new URLSearchParams({ overview: 'full', geometries: 'geojson' })
+          // steps: 'true' asks OSRM for turn-by-turn maneuver instructions
+          // per leg — see src/services/routes.ts's NavigationStep parsing
+          // and api/routes.ts (kept in sync with this dev equivalent).
+          const params = new URLSearchParams({ overview: 'full', geometries: 'geojson', steps: 'true' })
           if (wantAlternatives) params.set('alternatives', 'true')
           const upstream = await fetch(
             `https://router.project-osrm.org/route/v1/${profile}/${start};${end}?${params}`
