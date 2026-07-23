@@ -39,16 +39,16 @@ async function requestDirections(
 ) {
   const params = new URLSearchParams({
     profile,
-    start: \`\${start.lng},\${start.lat}\`,
-    end: \`\${end.lng},\${end.lat}\`
+    start: `${start.lng},${start.lat}`,
+    end: `${end.lng},${end.lat}`
   })
   if (alternatives) params.set('alternatives', 'true')
 
-  const res = await fetch(\`\${BASE_URL}?\${params}\`)
+  const res = await fetch(`${BASE_URL}?${params}`)
 
   if (res.status === 400) {
     // Our proxy (api/routes.ts) only returns 400 when OSRM itself
-    // responded with \`code !== "Ok"\` — i.e. it understood the request
+    // responded with `code !== "Ok"` — i.e. it understood the request
     // but genuinely couldn't find a route between these two points
     // (island, no connecting road/trail for this profile, etc).
     throw new RouteNotPossibleError(
@@ -56,7 +56,7 @@ async function requestDirections(
     )
   }
   if (!res.ok) {
-    throw new Error(\`Route request failed: \${res.status}\`)
+    throw new Error(`Route request failed: ${res.status}`)
   }
 
   const data = await res.json()
