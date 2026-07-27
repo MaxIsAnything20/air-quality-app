@@ -114,7 +114,9 @@ async function callGemini(prompt: string, apiKey: string): Promise<string> {
   )
 
   if (!upstream.ok) {
-    throw new Error(`Gemini API request failed: ${upstream.status}`)
+      const errorBody = await upstream.text().catch(() => '')
+      console.error(`Gemini API request failed: ${upstream.status} ${errorBody}`)
+      throw new Error(`Gemini API request failed: ${upstream.status}`)
   }
 
   const data = await upstream.json()
