@@ -175,4 +175,3 @@ export function useTurnByTurnNavigation(route: RouteResult, aqiReadings: AqiRead
     currentAqi
   }
 }
-}
