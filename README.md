@@ -1,303 +1,83 @@
 # Respira
 
-*Track the air you actually breathe.*
-
-A mobile-first air quality / wildfire smoke tracker. Map-first layout,
-inspired by the "minimal, crisis-usable" pattern (see Watch Duty, Windy,
-IQAir for reference), built around: current conditions, a monthly
-cumulative-exposure view, threshold alerts, a saved health profile, and a
-plain-language AI summary.
-
-Currently shipping as a responsive web app (see "Roadmap" below) while a
-native mobile rebuild — the one that can actually do background activity
-tracking, Health sync, and route-based exposure scoring — is being
-built out separately.
+Track the air you actually breathe — current conditions, a personal exposure score, cleaner-route planning with turn-by-turn navigation, indoor air estimates, and group/event air-quality tracking, all in one mobile-first web app.
 
 ## Stack
+
 - Vite + React + TypeScript
 - Tailwind CSS
-- react-leaflet (OpenStreetMap tiles, no API key needed for the map itself)
+- react-leaflet (OpenStreetMap tiles)
+- Upstash Redis (via @upstash/redis) for groups/events/push subscriptions
+- Vercel serverless functions (api/) as the backend, all on free tiers
 
 ## Run it
 
-```bash
+```
 npm install
 cp .env.example .env
-# add your AirNow / PurpleAir / (optional) Gemini keys to .env — see below
+# fill in the keys you want to test locally — see below
 npm run dev
 ```
 
-Open the printed localhost URL. Resize your browser to phone width (or
-open dev tools device mode) to see it as the mobile shell.
+Resize your browser to phone width (or use dev tools device mode) to see it as the mobile shell.
 
-## Getting an AirNow API key
+## What the app does
 
-1. Go to https://docs.airnowapi.org, click "Request an AirNow API Account"
-2. Register with your email, then activate the account from the confirmation email
-3. Your key is on the Web Services dashboard once logged in
-4. Paste it into `.env` as `AIRNOW_API_KEY=your-key-here` (no `VITE_` prefix
-   — see "Keys are server-side" below)
+- **Home** — a card-grid dashboard: current outdoor AQI, cleanest time of day, indoor air estimate, a personal exposure score, route planning, activity recording, groups/leaderboards, badges, AutoTrack, connections, and events.
+- **Route planning** (`src/components/RoutePlanningView.tsx`, `src/hooks/useRoutePlanning.ts`) — compares multiple walk/cycle routes between two points, colors each route by AQI along the path, calls out the worst stretch, and flags when no route is possible between two points. Routing is proxied through `/api/routes` to OSRM's free public demo server (`router.project-osrm.org`) — no key, no signup, ever.
+- **Turn-by-turn navigation** (`src/components/NavigationView.tsx`, `src/hooks/useTurnByTurnNavigation.ts`) — foreground voice-guided navigation along a planned route, using the browser's geolocation `watchPosition` and `SpeechSynthesisUtterance`. No background tracking (that needs a native shell).
+- **Air quality forecast** (`src/components/AirQualityForecastView.tsx`) — an hourly AQI curve for today and the rest of the week, with a tappable per-pollutant breakdown chart.
+- **Indoor air** (`src/components/IndoorAirView.tsx`) — a live indoor-air estimate model plus a history graph, with sensor setup routed through Settings.
+- **Groups & Events** (`src/components/GroupsView.tsx`, `src/components/EventsView.tsx`) — real leaderboards and events backed by Upstash Redis (`api/groups.ts`, `api/events.ts`): create/join a group or event with a share code, check in, compare exposure scores.
+- **Badges & streaks** (`src/services/streak.ts`) — tied to logged activity days and event check-ins.
+- **My activities** (`src/components/MyActivitiesView.tsx`, `src/components/ActivityView.tsx`) — logged activities with a live/completed route trace colored by AQI, editable/deletable segments, an AI "AirCoach" per-activity insight, and Web Share API sharing.
+- **Health profile & Settings** (`src/components/SettingsView.tsx` and its sub-views) — a drill-down settings list: Profile, AutoTrack, Sensors, Locations, App Connections, Notifications (alert thresholds + push permission), Communication, and Health profile (conditions that affect risk: asthma, heart/lung disease, age, pregnancy, outdoor work).
+- **Push notifications** — real background push via `web-push` + VAPID keys, subscriptions stored in Redis (`api/push/subscribe.ts`, `api/push/unsubscribe.ts`), sent by `api/push/check.ts` on a schedule driven by a GitHub Actions cron (`.github/workflows/push-check.yml`, every 15 minutes) rather than a paid Vercel Cron plan.
+- **AI-generated summaries** — a plain-language current-conditions summary and per-activity AirCoach insight, both via `api/summary.ts` calling Google's Gemini API free tier. Falls back to a local rule-based sentence if the key isn't set or the request fails — this part of the app never just breaks, even if the AI call does.
+- **5-pollutant tracking** — AQI plus PM2.5, PM10, ozone, NO2, and SO2 via Open-Meteo's Air Quality API, not just the single worst pollutant AirNow reports.
+- **PWA install** — installable manifest, works as a home-screen app.
 
-It's free, and requests are rate-limited per key (see AirNow's docs for
-current limits) — plenty for local development.
+## Environment variables
 
-If you don't set a key, or a request fails for any reason (rate limit,
-no station near you, offline), the app falls back to sample data and
-shows a small banner saying so — it never just breaks.
+See `.env.example` for the full list with setup instructions. Summary:
 
-## Getting a PurpleAir API key
+| Variable | Required? | Purpose |
+| --- | --- | --- |
+| `AIRNOW_API_KEY` | Yes | Live AQI observation + forecast (free, docs.airnowapi.org) |
+| `PURPLEAIR_API_KEY` | Yes | Community sensor overlay (free "Read" key, develop.purpleair.com) |
+| `GEMINI_API_KEY` | Optional | AI summary/AirCoach text (free tier, aistudio.google.com/apikey) — falls back to a local sentence if unset |
+| `KV_REST_API_URL` / `KV_REST_API_TOKEN` | Yes (Groups/Events/push) | Auto-injected when you provision Upstash Redis from Vercel's Storage tab |
+| `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` | Yes (push) | Generate with `npx web-push generate-vapid-keys` — see `PUSH_SETUP.md` |
+| `CRON_SECRET` | Yes (push) | Shared secret so `/api/push/check` only responds to the real GitHub Actions workflow |
+| `VITE_VAPID_PUBLIC_KEY` | Yes (push) | Same value as `VAPID_PUBLIC_KEY` — this one is safe to ship to the browser |
 
-1. Go to https://develop.purpleair.com and sign in with a Google account
-2. On the "keys" page, click the "+" button to create a key — leave it
-   as Read, Enabled
-3. Paste it into `.env` as `PURPLEAIR_API_KEY=your-key-here` (no `VITE_` prefix)
-
-Also free. Same fallback behavior as AirNow: no key or a failed request
-just shows sample sensor data with its own banner.
-
-## Getting a Gemini API key (optional)
-
-Only needed for the AI-generated plain-language summary on the map tab.
-
-1. Go to https://aistudio.google.com/apikey and create a key
-2. Paste it into `.env` as `GEMINI_API_KEY=your-key-here`
-
-Without it, the summary card still shows a sentence — just one built
-locally by a rule-based fallback instead of the model — and says so.
-
-## Keys are server-side
-
-`AIRNOW_API_KEY`, `PURPLEAIR_API_KEY`, and `GEMINI_API_KEY` are
-deliberately **not** prefixed with `VITE_`. That prefix is what tells Vite
-to inline a value into the client bundle — since these keys should never
-ship in browser-visible JS, none of them use it.
-
-- In dev, `vite.config.ts` runs a small middleware that reads these from
-  `.env` and proxies `/api/airnow`, `/api/purpleair`, and `/api/summary`,
-  attaching each key itself before forwarding upstream.
-- In production, the same three routes are backed by the serverless
-  functions in `api/` (`api/airnow.ts`, `api/purpleair.ts`, `api/summary.ts`,
-  plus `api/smoke.ts` / `api/fire.ts` for the keyless NOAA feeds). Deploy
-  this to Vercel (or adapt the handler signature for Netlify/Cloudflare
-  Workers) and set the same three env vars in that provider's dashboard.
-  The client code never changes between dev and prod — it only ever calls
-  its own `/api/*` paths.
-
-## What's real vs. mocked right now
-
-- **Current AQI + forecast peak** — live, from the AirNow API
-  (`src/services/airnow.ts`), based on your browser's geolocation
-  (falls back to San Francisco if location is denied) or a searched
-  location. Tapping any AQI dot on the map selects that station — the
-  summary card below switches to describe it by name (AQI, pollutant, and
-  a personalized recommendation) instead of a separate popup, since the
-  two were showing overlapping information. Sample-data mode uses the
-  same selection behavior with placeholder station names.
-- **Smoke polygons (light/medium/heavy)** — live, from NOAA's HMS
-  `smoke.kml` feed (`src/services/smoke.ts` + `src/services/smokeKml.ts`),
-  proxied through `/api/smoke`. No API key needed. Falls back to sample
-  polygons if the feed is unreachable, shown with its own small banner
-  independent of the AirNow one.
-- **Fire detection points** — live, from NOAA HMS `fire.kml`
-  (`src/services/fire.ts` + `src/services/fireKml.ts`), same feed family
-  as smoke. Filtered to within 300km of the current location, since the
-  raw feed covers all of North America. Falls back to sample points with
-  its own banner if unreachable. Titles are raw satellite detections
-  (e.g. "Fire detected (Suomi NPP)"), not human-assigned fire names — the
-  real feed doesn't provide those.
-- **Place/ZIP search** — live, via OpenStreetMap's Nominatim
-  (`src/services/geocode.ts`), no API key needed. Selecting a result
-  re-centers the map and re-fetches AQI/fire data for that location.
-- **PurpleAir sensor overlay** — live, via PurpleAir's API
-  (`src/services/purpleair.ts`), proxied through `/api/purpleair` with the
-  key attached server-side. Applies the EPA/AirFire smoke correction to
-  PurpleAir's raw PM2.5 reading before converting to AQI, since the raw
-  value runs high in smoke. Filtered to a ~25km box around the current
-  location — tighter than the fire feed's 300km, since the point of this
-  layer is hyperlocal density, not wide coverage.
-- **Monthly exposure history** — real, logged client-side
-  (`src/services/historyLog.ts`) each time a live AirNow reading comes in.
-  AirNow's historical endpoint only returns one day/reporting-area per
-  call, so instead of calling it repeatedly this keeps its own rolling log
-  in `localStorage` as you use the app. On a brand-new device with no
-  history yet, the History tab shows a fabricated sample curve instead
-  (clearly labeled) until real days accumulate — there's no way to
-  retroactively backfill days before the app was first opened.
-- **AI-generated plain-language summary** — real, via Google's Gemini API
-  through `/api/summary` (`src/services/summary.ts` +
-  `src/hooks/useSummary.ts`). Takes current AQI, forecast peak, and
-  whether your saved health profile has any conditions noted, and returns
-  two grounded sentences: current conditions, plus a direct "OK to go
-  outside" recommendation. Tap any AQI circle on the map to switch the
-  card to that specific station instead of your overall location (own
-  AQI/pollutant, no per-station forecast — AirNow doesn't publish one at
-  that granularity, so the summary says so rather than reusing the
-  regional forecast as if it applied). The category-level advice ("reduce
-  prolonged exertion," "sensitive groups should stay indoors," etc.) is
-  paraphrased from EPA/AirNow's actually-published Cautionary Statements
-  and Activity Guides (`src/services/aqiGuidance.ts`), handed to the model
-  as context rather than left for it to invent. The specific minute
-  estimates shown alongside that advice (e.g. "roughly 30 minutes") are
-  **not** official EPA figures — EPA's own guidance is qualitative, not
-  tied to a clock time — so those are clearly labeled in the UI, the code,
-  and the AI prompt as an illustrative rule of thumb, not medical advice.
-  Skipped entirely (no wasted request) while the rest of the app is
-  showing sample data. Falls back to a local, rule-based sentence if
-  `GEMINI_API_KEY` isn't set or the request fails — same "never just
-  breaks" pattern as everything else.
-- **Full per-pollutant breakdown** — real, part of the same AirNow
-  response already being fetched. AirNow reports one AQI per pollutant
-  (PM2.5, ozone, etc.) for a station and treats the worst one as *the*
-  AQI; this app used to discard the rest. Selecting a station now shows a
-  small badge per pollutant it reports (`AqiReading.pollutants` in
-  `types.ts`, built in `src/services/airnow.ts`'s
-  `buildPollutantBreakdown`), and the AI summary is told about a
-  secondary pollutant when one exists so it can mention it if it's
-  notably elevated, instead of only ever naming whichever one is worst.
-  Only shown when a station reports more than one pollutant — most
-  stations report two (PM2.5 and ozone), some only one.
-- **Time slider on the map** — real, in three parts: "today" (live, as
-  above), past days (`src/services/mapSnapshotLog.ts` — a local snapshot
-  taken once/day as you actually use the app, same "no fabricated
-  backfill" honesty as the History tab), and "tomorrow" (AirNow's real
-  regional forecast, AQI only). There's no reliable, documented per-date
-  URL for NOAA's smoke/fire archive (their filename convention changed in
-  2022, and what's public is a directory dump / interactive viewer, not a
-  stable REST endpoint) — so past smoke/fire only exists for days this
-  browser actually logged, and the forecast step only ever covers AQI.
-  The map says so explicitly (not silently blank) when you're on a layer
-  or day that has no data for the current step. Slider only appears once
-  there's actually more than one step to show.
-- **Divergence detection** — real, cross-checks official AirNow readings
-  against nearby PurpleAir sensors (`src/services/divergence.ts`) and
-  flags sensors reading notably worse than the nearest official station —
-  a signal official data (updated hourly) hasn't caught up to yet.
-  Skipped entirely on sample data.
-- **Alerts tab** — real, threshold-based browser notifications
-  (`src/components/AlertsView.tsx` + `src/hooks/useAlertNotifications.ts`).
-  Pick an AQI threshold, grant notification permission, and you'll get one
-  notification per calendar day if the live AQI reaches it. There's no
-  push server, so this only fires while the app is open in a tab (or
-  backgrounded, depending on the platform) — not a true background push.
-- **Profile tab** — real, a saved health profile
-  (`src/components/ProfileView.tsx` + `src/services/profile.ts`):
-  asthma, heart/lung disease, age, pregnancy, outdoor work. Stored in
-  `localStorage` only. Feeds the AI summary's personalization, and now
-  also the Alerts tab: a first-time alert threshold defaults to Moderate
-  (51+) instead of Unhealthy for Sensitive Groups (101+) if the profile
-  has any condition checked, and the Alerts tab shows an inline
-  suggestion (with a one-tap "Use 51+") if the profile is later edited
-  to become sensitive while a looser threshold is already saved. It never
-  silently overwrites an explicit choice — only suggests.
-
-## Roadmap
-
-Respira's longer-term goal is feature parity with dedicated air-quality
-exposure trackers: a personal exposure score computed from your actual
-route and activity (not just a static location reading), foreground
-activity tracking, cleaner-route suggestions, and — once it moves to a
-real native shell (React Native + Expo) — background tracking and
-Apple Health / Google Health Connect sync. This web app is the
-free-tier-realistic slice of that: no signup, live local air quality,
-and (incrementally) foreground activity tracking, all running in a
-browser tab rather than requiring an app store install or a paid
-developer account. See open issues / project notes for the current
-build order.
+All server-side keys are deliberately **not** prefixed with `VITE_`, so Vite never inlines them into the client bundle. In dev, `vite.config.ts` proxies the relevant `/api/*` paths with the key attached server-side; in production the same paths are backed by the serverless functions in `api/`.
 
 ## Structure
 
 ```
 src/
-  components/
-    MapView.tsx          map + layer toggle (smoke/fires/AQI/PurpleAir) + working zoom/recenter
-    MapLegend.tsx         collapsible legend, per-layer swatches + explanation (no cross-tab bleed)
-    SearchBar.tsx         live place/ZIP search (Nominatim), debounced
-    AqiGauge.tsx           hero AQI dial + location name, Respira brand chrome
-    DivergenceBanner.tsx  flags AirNow/PurpleAir disagreement
-    StatStrip.tsx         monthly / forecast stat cards
-    SummaryCard.tsx        AI (or fallback) plain-language summary + pollutant badges
-    HistoryView.tsx       month-to-date AQI chart + stats (real once logged, else sample)
-    AlertsView.tsx         threshold + notification-permission UI
-    ProfileView.tsx         saved health profile UI
-    BottomNav.tsx          map / history / alerts / profile tabs
-    ThemeToggle.tsx        light/dark switch
-  hooks/
-    useAirQuality.ts       live AirNow + NOAA smoke/fire data, search override, sample-data fallback, history logging
-    useSummary.ts           AI summary + local fallback, skips the API call on sample data
-    useAlertNotifications.ts  fires one browser Notification/day above threshold
-    useTheme.ts            theme state + persistence
-  services/
-    airnow.ts               AirNow API client (via /api/airnow)
-    airnowTypes.ts           AirNow response types
-    conditionAlert.ts        turns AQI + forecast into a plain-language alert
-    divergence.ts             AirNow vs. PurpleAir disagreement detection
-    geolocation.ts           browser geolocation with fallback
-    geocode.ts               Nominatim place/ZIP search
-    purpleair.ts             PurpleAir sensor fetch (via /api/purpleair), EPA smoke correction
-    smoke.ts / smokeKml.ts   NOAA HMS smoke feed (via /api/smoke)
-    fire.ts / fireKml.ts     NOAA HMS fire feed (via /api/fire), radius-filtered
-    historyLog.ts             real rolling daily-AQI log in localStorage
-    mapSnapshotLog.ts          real per-day map snapshot log, backs the time slider's past days
-    summary.ts                AI summary client (via /api/summary)
-    alertSettings.ts          threshold + enabled state, persisted
-    profile.ts                health profile + HEALTH_CONDITIONS, persisted
-    apiError.ts                shared "server key not configured" error type
-  data/mockData.ts         sample data used as a fallback everywhere above
-  types.ts                 shared app types + AQI level helper + PM2.5-to-AQI conversion
+  components/   screens and reusable UI (Home, Route planning, Navigation, Groups, Events,
+                 Settings sub-views, Indoor air, Forecast, Activity/My activities, Paywall, etc.)
+  hooks/         useRoutePlanning, useTurnByTurnNavigation, and other data hooks
+  services/      API clients (airnow, purpleair, routes, geocode, summary, streak, historyLog,
+                 profile, divergence, activityInsight, pushSubscription, etc.)
+  data/          sample/fallback data used when a live source is unreachable
+  types.ts       shared app types
 api/
-  airnow.ts / purpleair.ts / summary.ts   serverless functions, keys attached server-side
-  smoke.ts / fire.ts                       keyless NOAA proxies (CORS-avoidance only)
+  airnow.ts, purpleair.ts, smoke.ts, fire.ts   proxies for AQI/smoke/fire data, keys attached server-side
+  routes.ts                                     OSRM routing proxy
+  summary.ts                                     Gemini AI summary/AirCoach proxy
+  groups.ts, events.ts                          Redis-backed leaderboards and events
+  push/subscribe.ts, push/unsubscribe.ts, push/check.ts   web-push subscription + delivery
+.github/workflows/push-check.yml                cron trigger for api/push/check (GitHub Actions, free)
 ```
 
 ## Known limitations worth knowing about
 
-- **AirNow is retiring specific lat/long web service paths "in the fall of
-  2026" — re-checked, and it's narrower than I first thought.** Re-fetched
-  `docs.airnowapi.org/webservices` directly (not secondhand) and read the
-  full page this time: the two exact paths this app calls
-  (`/aq/observation/latLong/current/`, `/aq/forecast/latLong/` — now
-  centralized as `CURRENT_OBSERVATIONS_PATH`/`FORECAST_PATH` at the top of
-  `src/services/airnow.ts`) do appear to be in the "will be retired" list.
-  But **lat/long querying itself isn't going away** — the same docs page
-  separately lists still-current services ("Current Forecasts: By
-  Reporting Area, Lat/Long, or Zip Code" and "Current Observations: By Zip
-  Code or Lat/Long") that also take lat/long, which reads like several
-  older single-purpose endpoints being consolidated into unified ones, not
-  the capability being removed. The one real loss: AirNow's *historical*
-  observation endpoint is being narrowed to state-level queries only — but
-  this app never calls that endpoint (see below), so it's moot here.
-  I could not get the exact replacement path from the public docs — AirNow
-  builds exact query URLs through a "Generate URL" tool that needs a
-  logged-in developer account, which this environment doesn't have. If
-  you're reading this after fall 2026 and AirNow calls start failing,
-  that's almost certainly why — log in yourself, find the current
-  equivalent, and update the two path constants in `airnow.ts`; nothing
-  else should need to change, since the per-pollutant response shape isn't
-  expected to change. **In the meantime this isn't a silent-failure risk**:
-  every fetch in `useAirQuality.ts` already catches any error (wrong key,
-  rate limit, network blip, or a future 404) and falls back to sample data
-  with a visible banner — so the worst case between now and a manual fix
-  is losing live data, not a crash.
-- **History only starts from first use.** The rolling log lives in this
-  browser's `localStorage`; clearing site data or switching devices resets
-  it to zero, and there's no server-side backfill. AirNow does have a real
-  historical-observation endpoint (one day per call, matching what this
-  app assumed), but per the note above it's losing lat/long granularity
-  in the same fall-2026 change — not that it matters, since this app's
-  history is self-logged rather than calling that endpoint at all.
-- **Sample-data station/sensor names are deliberately generic** ("Sample
-  Station A," "Sample Sensor B"), not real place names, and both AQI and
-  PurpleAir sample readings get re-centered near the real/searched
-  location (`shiftToCenter()` in `useAirQuality.ts`) rather than always
-  sitting near San Francisco where the mock data is anchored. Worth
-  remembering if you add more mock readings later — same pattern applies.
-- **Alerts don't survive the tab closing.** True background push would
-  need a push subscription + a small server to send it — out of scope for
-  this scaffold. The Alerts tab now links out to AirNow's own EnviroFlash
-  email/text alerts (`https://www.enviroflash.info/`, verified as the
-  correct live signup) for anyone who wants notifications independent of
-  the browser tab being open — a real substitute, not a built feature.
-- **This is a web app, not a native mobile app.** No background location,
-  no HealthKit/Health Connect, no native push, no App Store presence.
-  Those all require the planned React Native + Expo rebuild — see
-  "Roadmap" above.
+- **PurpleAir sensor overlay is currently returning 402 (Payment Required) from PurpleAir's own API.** The proxy (`api/purpleair.ts`) and key are both correctly configured — PurpleAir itself is rejecting the specific request (their free "Read" key has a limited monthly data allowance and bills per point beyond it). The app falls back to sample sensor data rather than breaking. Worth checking your usage/plan at develop.purpleair.com if you want this restored.
+- **The AI summary (`/api/summary`) is currently returning 502** on every call — `GEMINI_API_KEY` is set correctly, but the upstream Gemini request is failing for a reason not yet confirmed (the code now logs the real upstream status/body via `console.error` in Vercel's function logs to help diagnose this). The app falls back to the local rule-based summary in the meantime, so nothing user-facing breaks.
+- **No native background tracking.** AutoTrack, live location, and turn-by-turn navigation only run while this tab is open/foregrounded — there's no background service, since that requires a native app shell (React Native/Expo), which is out of scope for this web build.
+- **Routing runs on OSRM's shared public demo server**, not a dedicated instance — it's free and keyless by design, but isn't meant for heavy production traffic and has no uptime guarantee.
+- **No real payment processing.** The Paywall screen is UI only (a subscription preview carousel) — there's no billing integration, by design, since this project only uses free services.
+- **No real payment processing.** The Paywall screen is UI only (a subscription preview carousel) — there's no billing integration, by design, since this project only uses free services.
