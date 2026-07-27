@@ -6,14 +6,19 @@ import { aqiColor, aqiLevelLabel } from '../aqiColors'
 import ScreenHeader from './ScreenHeader'
 import SearchBar from './SearchBar'
 import type { PlaceResult } from '../services/geocode'
-import { useRoutePlanning } from '../hooks/useRoutePlanning'
-import type { RouteProfile } from '../services/routes'
+import { useRoutePlanning, type LatLng } from '../hooks/useRoutePlanning'
+import type { RouteProfile, RouteResult } from '../services/routes'
 import { FREE_ROUTE_PLAN_LIMIT, UNLIMITED_ROUTE_PLANS } from '../services/routePlans'
 
 interface RoutePlanningViewProps {
   onBack: () => void
   onUpgrade: () => void
   aqiReadings: AqiReading[]
+  // Launches NavigationView (see App.tsx) with a real route — only ever
+  // called for a real (non-sample) route that actually has turn-by-turn
+  // steps, since a straight-line sample path has no real streets to
+  // navigate along.
+  onStartNavigation: (args: { route: RouteResult; destination: LatLng; profile: RouteProfile }) => void
 }
 
 function formatDistance(meters: number): string {
@@ -123,26 +128,18 @@ function InfeasibleRouteNotice({ reason }: { reason: string }) {
 /**
  * Real destination search (Photon, via SearchBar — no key needed) for
  * both Start and End, real device geolocation as a one-tap alternative
- * for Start, feeding a route request to OpenRouteService (see
- * services/routes.ts). Until OPENROUTESERVICE_API_KEY is set
- * server-side, useRoutePlanning falls back to a clearly-labeled sample
- * straight-line route instead — this screen always shows that as a
- * banner + dashed line, never blending it in as if it were real
- * turn-by-turn directions.
+ * for Start, feeding a route request to OSRM (see services/routes.ts).
+ * When a real route comes back with real turn-by-turn steps, a "Start
+ * navigation" button launches NavigationView (see App.tsx) for live,
+ * voice-guided turn-by-turn directions — never shown for the sample
+ * straight-line placeholder, since there's no real street to navigate.
  *
  * Before ever calling the routing API, useRoutePlanning also runs a
  * straight-line feasibility check per activity, and separately surfaces
- * OpenRouteService's own "no route exists" responses — both shown here
- * as the same distinct InfeasibleRouteNotice, rather than the generic
- * error card, so a genuinely impossible trip reads differently from a
- * technical failure.
- *
- * When OpenRouteService returns more than one route (see
- * useRoutePlanning's routeOptions), a row of tappable option chips
- * (Cleanest / Shortest / Balanced / Best) lets you compare trade-offs and
- * switch which one the map + stats below describe — matching the
- * reference app's route-comparison flow instead of only ever showing a
- * single "the" route.
+ * OSRM's own "no route exists" responses — both shown here as the same
+ * distinct InfeasibleRouteNotice, rather than the generic error card, so
+ * a genuinely impossible trip reads differently from a technical
+ * failure.
  *
  * For real routes, the line itself is colored segment-by-segment using
  * the nearest real AQI reading at each point along the path (see
@@ -150,7 +147,12 @@ function InfeasibleRouteNotice({ reason }: { reason: string }) {
  * actually changes on THIS route, rather than a single trip-wide average
  * number.
  */
-export default function RoutePlanningView({ onBack, onUpgrade, aqiReadings }: RoutePlanningViewProps) {
+export default function RoutePlanningView({
+  onBack,
+  onUpgrade,
+  aqiReadings,
+  onStartNavigation
+}: RoutePlanningViewProps) {
   const {
     origin,
     originLabel,
@@ -163,9 +165,6 @@ export default function RoutePlanningView({ onBack, onUpgrade, aqiReadings }: Ro
     clearDestination,
     status,
     plan,
-    routeOptions,
-    selectedRouteIndex,
-    selectRoute,
     errorMessage,
     infeasibleReason,
     planCount,
@@ -190,6 +189,8 @@ export default function RoutePlanningView({ onBack, onUpgrade, aqiReadings }: Ro
     plan?.routeSegments && plan.routeSegments.length > 0
       ? Array.from(new Set(plan.routeSegments.map((segment) => segment.level)))
       : []
+
+  const canNavigate = !!plan && !plan.usingSampleData && plan.route.steps.length > 0 && !!destination
 
   return (
     <div className="flex-1 flex flex-col overflow-y-auto">
@@ -284,42 +285,10 @@ export default function RoutePlanningView({ onBack, onUpgrade, aqiReadings }: Ro
             {plan.usingSampleData && (
               <div className="bg-ink-100 dark:bg-night-700 rounded-xl px-3.5 py-2.5">
                 <p className="text-[11px] text-ink-600 dark:text-night-200 m-0">
-                  Sample route preview — real turn-by-turn directions need an OpenRouteService API key set on
-                  the server. Distance shown is accurate (straight-line); duration is a rough pace estimate,
+                  Sample route preview — real turn-by-turn directions need the routing service to be
+                  reachable. Distance shown is accurate (straight-line); duration is a rough pace estimate,
                   not real routing.
                 </p>
-              </div>
-            )}
-
-            {routeOptions.length > 1 && (
-              <div>
-                <p className="text-xs font-medium text-ink-900 dark:text-night-100 mb-1.5">
-                  {routeOptions.length} route options
-                </p>
-                <div className="flex gap-2 overflow-x-auto pb-1 -mx-0.5 px-0.5">
-                  {routeOptions.map((option, index) => {
-                    const selected = index === selectedRouteIndex
-                    return (
-                      <button
-                        key={index}
-                        onClick={() => selectRoute(index)}
-                        className={`shrink-0 text-left rounded-xl px-3 py-2 border ${
-                          selected
-                            ? 'border-[#1F4D3A] dark:border-[#8FC7A6] bg-[#1F4D3A]/10 dark:bg-[#8FC7A6]/10'
-                            : 'border-ink-200 dark:border-night-600'
-                        }`}
-                      >
-                        <p className="text-xs font-semibold text-ink-900 dark:text-night-100 m-0">
-                          {option.label ?? `Route ${index + 1}`}
-                        </p>
-                        <p className="text-[11px] text-ink-600 dark:text-night-200 m-0 mt-0.5">
-                          {formatDistance(option.route.distanceMeters)}
-                          {option.routeAvgAqi != null ? ` · AQI ${option.routeAvgAqi}` : ''}
-                        </p>
-                      </button>
-                    )
-                  })}
-                </div>
               </div>
             )}
 
@@ -428,6 +397,24 @@ export default function RoutePlanningView({ onBack, onUpgrade, aqiReadings }: Ro
                   {formatDistance(plan.worstStretch.distanceFromStartMeters)} into your route.
                 </p>
               </div>
+            )}
+
+            {canNavigate && destination && (
+              <button
+                onClick={() =>
+                  onStartNavigation({
+                    route: plan.route,
+                    destination: { lat: destination.lat, lng: destination.lng },
+                    profile
+                  })
+                }
+                className="w-full py-3 rounded-xl bg-[#1F4D3A] dark:bg-[#8FC7A6] text-white dark:text-night-900 text-sm font-semibold flex items-center justify-center gap-2"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 2 4 21l8-4.5L20 21Z" />
+                </svg>
+                Start navigation
+              </button>
             )}
 
             <button
