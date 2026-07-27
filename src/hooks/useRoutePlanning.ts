@@ -82,6 +82,10 @@ function buildSampleRoute(start: LatLng, end: LatLng, profile: RouteProfile): Ro
   const speed = profile === 'cycling-regular' ? AVERAGE_CYCLE_SPEED_MPS : AVERAGE_WALK_SPEED_MPS
   return {
     coordinates,
+    // No real turn-by-turn steps for a straight-line placeholder --
+    // RoutePlanningView's canNavigate check already keeps "Start
+    // navigation" hidden whenever a plan has no steps.
+    steps: []
     distanceMeters: straightLineMeters,
     durationSeconds: straightLineMeters / speed
   }
