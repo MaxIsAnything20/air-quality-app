@@ -17,6 +17,9 @@ import GroupsView from './components/GroupsView'
 import IndoorAirView from './components/IndoorAirView'
 import EventsView from './components/EventsView'
 import RoutePlanningView from './components/RoutePlanningView'
+import NavigationView from './components/NavigationView'
+import type { RouteResult, RouteProfile } from './services/routes'
+import type { LatLng } from './hooks/useRoutePlanning'
 import AirQualityForecastView from './components/AirQualityForecastView'
 import SettingsView from './components/SettingsView'
 import SettingsProfileView from './components/SettingsProfileView'
@@ -61,10 +64,19 @@ const activityTracking = useActivityTracking(air.aqiReadings)
 const [screen, setScreen] = useState<ScreenId>('home')
 const [screenStack, setScreenStack] = useState<ScreenId[]>([])
 const [menuOpen, setMenuOpen] = useState(false)
+  // Route/destination/profile handed off from RoutePlanningView when
+  // "Start navigation" is tapped, and cleared again on exit so a later
+  // visit to route planning never resumes a stale navigation session.
+  const [activeNavigation, setActiveNavigation] = useState<{
+    route: RouteResult
+    destination: LatLng
+    profile: RouteProfile
+  } | null>(null)
+
 
 function navigateTo(next: ScreenId) {
 setScreenStack((stack) => [...stack, screen])
-setScreen(next)
+  setScreen(next)
 }
 
 function goBack() {
@@ -371,6 +383,10 @@ onManageSensors={() => navigateTo('settingsSensors')}
 onBack={goBack}
 onUpgrade={() => navigateTo('paywall')}
 aqiReadings={air.aqiReadings}
+  onStartNavigation={(args) => {
+    setActiveNavigation(args)
+      navigateTo('navigation')
+  }}
 />
 )}
 
@@ -423,6 +439,19 @@ center={air.center}
 {screen === 'settingsCommunication' && <SettingsCommunicationView onBack={goBack} />}
 
 {screen === 'paywall' && <PaywallView onBack={goBack} />}
+
+  {screen === 'navigation' && activeNavigation && (
+  <NavigationView
+    initialRoute={activeNavigation.route}
+    destination={activeNavigation.destination}
+    profile={activeNavigation.profile}
+    aqiReadings={air.aqiReadings}
+    onExit={() => {
+      setActiveNavigation(null)
+        goBack()
+    }}
+    />
+  )}
 
 <HamburgerMenu open={menuOpen} active={screen} onClose={() => setMenuOpen(false)} onNavigate={navigateTo} />
 </div>
