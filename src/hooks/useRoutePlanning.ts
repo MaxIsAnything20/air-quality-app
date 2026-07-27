@@ -85,7 +85,7 @@ function buildSampleRoute(start: LatLng, end: LatLng, profile: RouteProfile): Ro
     // No real turn-by-turn steps for a straight-line placeholder --
     // RoutePlanningView's canNavigate check already keeps "Start
     // navigation" hidden whenever a plan has no steps.
-    steps: []
+    steps: [],
     distanceMeters: straightLineMeters,
     durationSeconds: straightLineMeters / speed
   }
