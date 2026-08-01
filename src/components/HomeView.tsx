@@ -306,20 +306,20 @@ export default function HomeView({
           </button>
 
           <button
-            onClick={() => onNavigate('settings')}
+            onClick={() => onNavigate('settingsConnections')}
             className="bg-ink-100 dark:bg-night-700 rounded-2xl p-3.5 text-left"
           >
             <p className="text-sm font-medium text-ink-900 dark:text-night-100 m-0">Connections</p>
             <div className="flex gap-1 mt-2">
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-ink-200 dark:bg-night-600 text-ink-600 dark:text-night-200">
-                Health
-              </span>
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-ink-200 dark:bg-night-600 text-ink-600 dark:text-night-200">
-                Garmin
-              </span>
+          <span className="text-[10px] px-1.5 py-0.5 rounded bg-ink-200 dark:bg-night-600 text-ink-600 dark:text-night-200">
+            Strava
+          </span>
+          <span className="text-[10px] px-1.5 py-0.5 rounded bg-ink-200 dark:bg-night-600 text-ink-600 dark:text-night-200">
+            Health
+          </span>
             </div>
             <p className="text-[11px] text-ink-400 dark:text-night-400 m-0 mt-2">
-              Connect Health & Garmin
+                              Connect Strava & Health
             </p>
           </button>
         </div>
