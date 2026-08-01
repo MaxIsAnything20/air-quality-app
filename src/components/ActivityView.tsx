@@ -410,7 +410,7 @@ function AiCoachInsight({ activity }: { activity: Activity }) {
 }
 
 /** Web Share API when available (mobile browsers, installed PWA — this
- * is exactly the "installable app" context Respira already supports), a
+ * is exactly the "installable app" context Mframapa already supports), a
  * clipboard-copy fallback everywhere else (most desktop browsers don't
  * implement navigator.share). Either way this is device-native sharing,
  * not a bespoke share-card renderer — no server round-trip, no new
@@ -424,7 +424,7 @@ function ShareActivityButton({ activity }: { activity: Activity }) {
 
     if (nav.share) {
       try {
-        await nav.share({ title: 'My Respira activity', text })
+        await nav.share({ title: 'My Mframapa activity', text })
       } catch {
         // User cancelled the native share sheet, or it failed silently —
         // either way there's nothing useful to recover into here.
