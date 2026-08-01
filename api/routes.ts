@@ -20,7 +20,7 @@
 // here, so switching backends again later stays a one-file change.
 const OSRM_BASE_URL = 'https://router.project-osrm.org/route/v1'
 
-// Respira's own profile names (unchanged from the earlier ORS-based
+// Mframapa's own profile names (unchanged from the earlier ORS-based
 // version, so nothing else in the app needed to change — see
 // src/services/routes.ts) map onto OSRM's own profile path segments.
 const OSRM_PROFILE: Record<string, string> = {
