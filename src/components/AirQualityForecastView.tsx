@@ -142,7 +142,7 @@ function PollutantTrendChart({ series }: { series: HourPoint[] }) {
 }
 
 /**
- * Respira's data source (AirNow) only ever gives a real current reading
+ * Mframapa's data source (AirNow) only ever gives a real current reading
  * plus a single real forecast peak for today — no true hourly curve and
  * no per-day forecast beyond today. So this screen:
  *  - Shows an hourly bar chart for TODAY only, built from
