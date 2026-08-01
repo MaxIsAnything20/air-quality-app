@@ -1,6 +1,6 @@
 {
-  "name": "Respira",
-  "short_name": "Respira",
+  "name": "Mframapa",
+  "short_name": "Mframapa",
   "description": "Track the air you actually breathe — live air quality and wildfire smoke tracker",
   "start_url": "/",
   "display": "standalone",
