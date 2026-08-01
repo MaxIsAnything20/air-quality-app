@@ -1,4 +1,4 @@
-// Respira service worker. Handles background push (showing a
+// Mframapa service worker. Handles background push (showing a
 // notification when a push arrives even with no tab open, and focusing
 // or opening the app when that notification is tapped) plus a minimal
 // fetch handler so the browser recognizes this as an installable PWA.
