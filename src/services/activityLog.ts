@@ -4,7 +4,7 @@ import type { Activity, ActivityPoint, ActivityType } from '../types'
 * Foreground-only activity log, persisted to localStorage.
 *
 * Why localStorage and not a backend: this is the web-realistic version of
-* Respira's activity tracking (see README "Roadmap"). A native rebuild would
+* Mframapa's activity tracking (see README "Roadmap"). A native rebuild would
 * sync this to a server and to Health; for now everything lives on
 * the device the activity was recorded on.
 */
