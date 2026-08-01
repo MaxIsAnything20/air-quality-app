@@ -52,7 +52,7 @@ function buildShareText(activity: Activity): string {
     lines.push(`Avg air quality: ${avgAqi} AQI (${aqiLevelLabel[level]})`)
   }
 
-  lines.push('Tracked with Respira')
+  lines.push('Tracked with Mframapa')
   return lines.join('\n')
 }
 
