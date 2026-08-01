@@ -18,7 +18,7 @@ interface SettingsCommunicationViewProps {
 
 /**
  * Groups the reference app's "Communication" preferences with the
- * privacy controls they naturally imply — Respira has no email or push
+ * privacy controls they naturally imply — Mframapa has no email or push
  * server to send marketing from, so the toggle below is a real, working
  * local preference rather than a connected mailing-list setting, and
  * "Clear my data" (the local equivalent of "Delete Account") lives here
@@ -56,7 +56,7 @@ export default function SettingsCommunicationView({ onBack }: SettingsCommunicat
           <div>
             <p className="text-sm text-ink-900 dark:text-night-100 m-0">Product updates by email</p>
             <p className="text-[11px] text-ink-400 dark:text-night-400 m-0 mt-0.5">
-              Respira has no account or email on file, so this only controls whether the setting shows as
+              Mframapa has no account or email on file, so this only controls whether the setting shows as
               on for you locally — nothing is actually sent.
             </p>
           </div>
