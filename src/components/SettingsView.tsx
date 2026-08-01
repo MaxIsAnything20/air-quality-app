@@ -112,7 +112,7 @@ export default function SettingsView({ onBack, onNavigate }: SettingsViewProps) 
         ))}
       </div>
       <div className="px-4 py-4 border-t border-ink-200 dark:border-night-600 mt-auto">
-        <p className="text-xs text-ink-400 dark:text-night-400">Respira</p>
+        <p className="text-xs text-ink-400 dark:text-night-400">Mframapa</p>
       </div>
     </div>
   )
