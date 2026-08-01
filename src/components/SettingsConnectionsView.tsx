@@ -7,13 +7,15 @@ interface Connection {
   status: 'connect' | 'comingSoon' | 'live'
 }
 
-// Mirrors the real app's actual integration set. Apple Health and Google
-// Health Connect are native-only APIs with no web equivalent, so they
-// stay honest "connect" stubs below. Garmin is listed as coming soon.
+// Mirrors the real app's actual integration set: Strava, Apple Health, and
+// Google Health Connect. None reach a real account from this web build —
+// Apple/Google Health are native-only APIs with no web equivalent, and
+// Strava OAuth was intentionally left out to keep the deploy on Vercel's
+// free tier — so each stays an honest "connect" stub instead of a live flow.
 const CONNECTIONS: Connection[] = [
+  { id: 'strava', label: 'Strava', status: 'connect' },
   { id: 'appleHealth', label: 'Apple Health', status: 'connect' },
   { id: 'googleHealth', label: 'Google Health Connect', status: 'connect' },
-  { id: 'garmin', label: 'Garmin', status: 'comingSoon' },
 ]
 
 interface SettingsConnectionsViewProps {
@@ -22,8 +24,8 @@ interface SettingsConnectionsViewProps {
 
 /**
  * Toggle-switch style list, matching the real app's App Connections
- * screen structure. Apple Health and Google Health Connect stay honest
- * stubs since neither has a web API this app could call.
+ * screen structure: Strava, Apple Health, and Google Health Connect.
+ * Each stays an honest "connect" stub rather than a live OAuth flow.
  */
 export default function SettingsConnectionsView({ onBack }: SettingsConnectionsViewProps) {
   const [tapped, setTapped] = useState<Record<string, boolean>>({})
