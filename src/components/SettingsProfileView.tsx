@@ -51,7 +51,7 @@ function BadgeRow({
 
 /**
  * The reference app's Profile screen shows a signed-in account (email,
- * streak, badges) because it has real server-side auth. Respira doesn't
+ * streak, badges) because it has real server-side auth. Mframapa doesn't
  * have accounts at all — everything lives in this browser only — so the
  * honest equivalent keeps that fact front and center, while still
  * showing a real streak and badge state computed from actually-logged
@@ -109,7 +109,7 @@ export default function SettingsProfileView({ onBack, streak, badgeEarned, event
           <div>
             <p className="text-sm font-medium text-ink-900 dark:text-night-100 m-0">No account on this device</p>
             <p className="text-xs text-ink-400 dark:text-night-400 m-0 mt-0.5 max-w-[240px]">
-              Respira doesn't use accounts — everything you see is saved only in this browser, on this device.
+              Mframapa doesn't use accounts — everything you see is saved only in this browser, on this device.
             </p>
           </div>
         </div>
