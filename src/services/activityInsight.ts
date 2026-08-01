@@ -8,7 +8,7 @@ import { activityAverageAqi, activityPeakAqi, activityDistanceMeters, activityDu
  * Gemini-backed /api/summary endpoint used for the general conditions
  * summary (src/services/summary.ts), just with mode: 'activity' and this
  * activity's own stats instead of live ambient AQI. Reusing the endpoint
- * (rather than adding a new serverless function) keeps Respira under
+ * (rather than adding a new serverless function) keeps Mframapa under
  * Vercel Hobby's per-deployment function cap.
  *
  * Throws on any failure — callers should catch and fall back to the
