@@ -93,7 +93,7 @@ function SubscriptionPreviewModal({ plan, onCancel, onConfirm }: SubscriptionPre
           </div>
         </div>
         <p className="text-[11px] text-ink-400 dark:text-night-400 mb-4">
-          Cancel anytime before the trial ends and you won't be charged. This preview is illustrative — Respira
+          Cancel anytime before the trial ends and you won't be charged. This preview is illustrative — Mframapa
           has no real billing set up, so nothing is ever actually charged.
         </p>
         <button
@@ -147,7 +147,7 @@ export default function PaywallView({ onBack }: PaywallViewProps) {
           </svg>
         </button>
         <div className="mt-6">
-          <p className="text-xs font-semibold tracking-wide text-[#D9922B] uppercase mb-1">Respira Premium</p>
+          <p className="text-xs font-semibold tracking-wide text-[#D9922B] uppercase mb-1">Mframapa Premium</p>
           <h1 className="text-2xl font-semibold text-white m-0">Breathe with more confidence</h1>
           <p className="text-sm text-white/70 mt-2">
             Unlock automatic tracking, cleaner routes, and deeper air quality insight.
