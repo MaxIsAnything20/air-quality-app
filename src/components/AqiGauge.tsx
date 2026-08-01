@@ -64,7 +64,7 @@ export default function AqiGauge({
   const color = aqiColor[level]
 
   return (
-    // Respira brand gradient (continues the header's green from App.tsx
+    // Mframapa brand gradient (continues the header's green from App.tsx
     // into one seamless panel) — the dial sits on a bold green field
     // rather than blending into the page. The readout below the dial
     // gets its own light card instead of sitting directly on the green,
