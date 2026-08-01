@@ -22,7 +22,7 @@ export default function SettingsSensorsView({ onBack }: SettingsSensorsViewProps
         <div className="rounded-2xl border border-ink-200 dark:border-night-600 p-4 mb-3">
           <p className="text-sm font-medium text-ink-900 dark:text-night-100 mb-1">Buy air quality sensors</p>
           <p className="text-xs text-ink-400 dark:text-night-400 m-0">
-            Pair hardware for live per-room indoor readings. Respira doesn't sell sensors itself — any
+            Pair hardware for live per-room indoor readings. Mframapa doesn't sell sensors itself — any
             monitor that exposes a public API could be connected here in a future build.
           </p>
         </div>
